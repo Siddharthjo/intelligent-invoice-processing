@@ -1,3 +1,4 @@
+import uuid
 from enum import StrEnum
 
 from pydantic import BaseModel
@@ -10,6 +11,7 @@ class Recommendation(StrEnum):
 
 
 class AgentInvestigationResult(BaseModel):
+    id: uuid.UUID | None = None
     recommendation: Recommendation
     reasoning_summary: str
     concerns: list[str]

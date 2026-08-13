@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Intelligent Invoice Processing — Agent Demo</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --panel: #ffffff;
+    --border: #e2e2e6;
+    --text: #1c1c1f;
+    --muted: #6b6b74;
+    --accent: #2f6fed;
+    --green: #1a7f37;
+    --green-bg: #e9f7ee;
+    --yellow: #9a6700;
+    --yellow-bg: #fff8e6;
+    --red: #b3261e;
+    --red-bg: #fdecea;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 2rem 1.5rem 4rem;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  .subtitle { color: var(--muted); margin-top: 0; margin-bottom: 2rem; font-size: 0.9rem; }
+  section.panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  h2 { font-size: 1rem; margin-top: 0; margin-bottom: 1rem; }
+  .row { display: flex; gap: 0.75rem; align-items: center; }
+  input[type="file"] { flex: 1; }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  button:disabled { background: #b7c6ec; cursor: not-allowed; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 0.5rem; }
+  th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  .field-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem 1.5rem; font-size: 0.9rem; }
+  .field-grid dt { color: var(--muted); }
+  .field-grid dd { margin: 0; }
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .badge.valid, .badge.auto_posted { color: var(--green); background: var(--green-bg); }
+  .badge.invalid, .badge.pending_review { color: var(--yellow); background: var(--yellow-bg); }
+  .badge.returned_to_vendor { color: var(--red); background: var(--red-bg); }
+  ul.issues { margin: 0.5rem 0 0; padding-left: 1.2rem; font-size: 0.85rem; }
+  ul.issues li { margin-bottom: 0.25rem; }
+  .step-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.6rem;
+    font-size: 0.85rem;
+    opacity: 0;
+    animation: fade-in 0.25s ease forwards;
+  }
+  @keyframes fade-in { to { opacity: 1; } }
+  .step-card .tool-name { font-weight: 600; font-family: ui-monospace, monospace; }
+  .step-card pre { background: #f2f2f5; border-radius: 6px; padding: 0.5rem; overflow-x: auto; margin: 0.35rem 0 0; font-size: 0.78rem; }
+  .decision-panel { text-align: center; padding: 1.5rem; }
+  .decision-panel .status-badge { font-size: 1rem; padding: 0.3rem 0.9rem; margin-bottom: 0.75rem; }
+  .decision-panel .reasoning { font-size: 0.9rem; margin: 0.75rem auto; max-width: 560px; }
+  .concerns { margin-top: 0.5rem; }
+  .concerns .badge { background: var(--red-bg); color: var(--red); margin: 0.15rem; }
+  .muted { color: var(--muted); font-size: 0.85rem; }
+  .error { color: var(--red); font-size: 0.85rem; margin-top: 0.5rem; }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px; border: 2px solid #cfd8f5;
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite;
+    vertical-align: middle; margin-right: 0.4rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Intelligent Invoice Processing</h1>
+  <p class="subtitle">Upload a PDF invoice, watch it move through extraction, deterministic validation, and agent investigation.</p>
+
+  <section class="panel">
+    <h2>1. Upload invoice</h2>
+    <form id="upload-form" class="row">
+      <input type="file" id="file-input" accept="application/pdf" required />
+      <button type="submit" id="upload-button">Upload &amp; process</button>
+    </form>
+    <div id="upload-error" class="error hidden"></div>
+  </section>
+
+  <section class="panel hidden" id="invoice-panel">
+    <h2>2. Extraction &amp; validation result</h2>
+    <dl class="field-grid" id="invoice-fields"></dl>
+    <table id="line-items-table">
+      <thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Amount</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="validation-issues"></div>
+  </section>
+
+  <section class="panel hidden" id="investigate-panel">
+    <h2>3. Agent investigation</h2>
+    <button id="investigate-button">Investigate with agent</button>
+    <div id="investigate-error" class="error hidden"></div>
+    <div id="investigate-loading" class="muted hidden" style="margin-top:0.75rem;">
+      <span class="spinner"></span>Running agent investigation…
+    </div>
+  </section>
+
+  <section class="panel hidden" id="trace-panel">
+    <h2>Tool-call trace</h2>
+    <div id="trace-steps"></div>
+  </section>
+
+  <section class="panel hidden" id="decision-panel">
+    <h2>Final decision</h2>
+    <div class="decision-panel">
+      <div id="decision-badge"></div>
+      <p class="reasoning" id="decision-reasoning"></p>
+      <div id="decision-concerns" class="concerns"></div>
+      <p class="muted" id="decision-meta"></p>
+    </div>
+  </section>
+</main>
+
+<script>
+  const el = (id) => document.getElementById(id);
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  let currentInvoiceId = null;
+
+  function badge(status) {
+    return `<span class="badge ${status}">${status}</span>`;
+  }
+
+  function renderInvoice(invoice) {
+    const fields = el("invoice-fields");
+    fields.innerHTML = `
+      <dt>Invoice number</dt><dd>${invoice.invoice_number}</dd>
+      <dt>Vendor</dt><dd>${invoice.vendor_name}</dd>
+      <dt>Issue date</dt><dd>${invoice.issue_date}</dd>
+      <dt>Total</dt><dd>${invoice.currency} ${invoice.total_amount}</dd>
+      <dt>Validation status</dt><dd>${badge(invoice.status)}</dd>
+    `;
+
+    const tbody = document.querySelector("#line-items-table tbody");
+    tbody.innerHTML = invoice.line_items.map(
+      (item) => `<tr><td>${item.description}</td><td>${item.quantity}</td><td>${item.unit_price}</td><td>${item.extended_price}</td></tr>`
+    ).join("");
+
+    const issuesEl = el("validation-issues");
+    if (invoice.validation_issues.length === 0) {
+      issuesEl.innerHTML = `<p class="muted">No validation issues.</p>`;
+    } else {
+      issuesEl.innerHTML = `<ul class="issues">${invoice.validation_issues.map(
+        (issue) => `<li><strong>${issue.rule_code}</strong> (${issue.severity}): ${issue.message}</li>`
+      ).join("")}</ul>`;
+    }
+
+    el("invoice-panel").classList.remove("hidden");
+    el("investigate-panel").classList.remove("hidden");
+  }
+
+  el("upload-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    el("upload-error").classList.add("hidden");
+    el("upload-button").disabled = true;
+
+    const file = el("file-input").files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("/invoices", { method: "POST", body: formData });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Upload failed.");
+
+      currentInvoiceId = body.id;
+      renderInvoice(body);
+      ["trace-panel", "decision-panel"].forEach((id) => el(id).classList.add("hidden"));
+      el("trace-steps").innerHTML = "";
+    } catch (err) {
+      el("upload-error").textContent = err.message;
+      el("upload-error").classList.remove("hidden");
+    } finally {
+      el("upload-button").disabled = false;
+    }
+  });
+
+  function renderStep(step) {
+    const card = document.createElement("div");
+    card.className = "step-card";
+    card.innerHTML = `
+      <div><span class="muted">Step ${step.step}</span> — <span class="tool-name">${step.tool}</span></div>
+      <pre>args: ${JSON.stringify(step.arguments)}</pre>
+      <pre>result: ${JSON.stringify(step.result)}</pre>
+    `;
+    el("trace-steps").appendChild(card);
+  }
+
+  function renderDecision(investigation) {
+    el("decision-badge").innerHTML =
+      `${badge(investigation.decision_status)} &nbsp; <span class="muted">(agent recommended: ${investigation.recommendation})</span>`;
+    el("decision-reasoning").textContent = investigation.reasoning_summary;
+
+    const concernsEl = el("decision-concerns");
+    concernsEl.innerHTML = investigation.concerns.length
+      ? investigation.concerns.map((c) => `<span class="badge">${c}</span>`).join("")
+      : `<span class="muted">No concerns flagged.</span>`;
+
+    el("decision-meta").textContent =
+      `${investigation.model} · ${investigation.tool_call_count} tool calls · policy ${investigation.policy_version}`;
+
+    el("decision-panel").classList.remove("hidden");
+  }
+
+  el("investigate-button").addEventListener("click", async () => {
+    if (!currentInvoiceId) return;
+
+    el("investigate-error").classList.add("hidden");
+    el("investigate-button").disabled = true;
+    el("investigate-loading").classList.remove("hidden");
+    el("trace-panel").classList.add("hidden");
+    el("decision-panel").classList.add("hidden");
+    el("trace-steps").innerHTML = "";
+
+    try {
+      const response = await fetch(`/invoices/${currentInvoiceId}/investigate`, { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Investigation failed.");
+
+      el("trace-panel").classList.remove("hidden");
+      for (const step of body.steps) {
+        renderStep(step);
+        await sleep(400);
+      }
+      await sleep(200);
+      renderDecision(body);
+    } catch (err) {
+      el("investigate-error").textContent = err.message;
+      el("investigate-error").classList.remove("hidden");
+    } finally {
+      el("investigate-button").disabled = false;
+      el("investigate-loading").classList.add("hidden");
+    }
+  });
+</script>
+</body>
+</html>

@@ -4,8 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from invoice_processing.agent.result import AgentInvestigationResult, Recommendation
+from invoice_processing.agent.trace_view import to_trace_steps
+from invoice_processing.decision.result import DecisionResult, DecisionStatus
 from invoice_processing.domain.enums import InvoiceStatus
 from invoice_processing.domain.invoice import Invoice
+from invoice_processing.persistence.orm_models import AgentInvestigationRecord, InvoiceDecisionRecord
 from invoice_processing.persistence.repository import StoredInvoice
 from invoice_processing.pipeline.process_invoice import PipelineResult
 from invoice_processing.validation.result import Severity, ValidationIssue
@@ -38,6 +42,7 @@ class InvoiceOut(BaseModel):
     discount_amount: Decimal | None
     total_amount: Decimal
     status: InvoiceStatus
+    decision_status: DecisionStatus | None
     source_filename: str | None
     validation_issues: list[ValidationIssueOut]
 
@@ -49,6 +54,7 @@ class InvoiceOut(BaseModel):
         invoice: Invoice,
         source_filename: str | None,
         validation_issues: list[ValidationIssue],
+        decision_status: str | None = None,
     ) -> "InvoiceOut":
         return cls(
             id=id,
@@ -64,6 +70,7 @@ class InvoiceOut(BaseModel):
             discount_amount=invoice.discount_amount,
             total_amount=invoice.total_amount,
             status=invoice.status,
+            decision_status=DecisionStatus(decision_status) if decision_status else None,
             source_filename=source_filename,
             validation_issues=[ValidationIssueOut(**issue.model_dump()) for issue in validation_issues],
         )
@@ -84,6 +91,7 @@ class InvoiceOut(BaseModel):
             invoice=stored.invoice,
             source_filename=stored.source_filename,
             validation_issues=stored.validation_issues,
+            decision_status=stored.decision_status,
         )
 
 
@@ -95,6 +103,7 @@ class InvoiceSummaryOut(BaseModel):
     currency: str
     total_amount: Decimal
     status: InvoiceStatus
+    decision_status: DecisionStatus | None
 
     @classmethod
     def from_stored(cls, stored: StoredInvoice) -> "InvoiceSummaryOut":
@@ -106,4 +115,62 @@ class InvoiceSummaryOut(BaseModel):
             currency=stored.invoice.currency,
             total_amount=stored.invoice.total_amount,
             status=stored.invoice.status,
+            decision_status=DecisionStatus(stored.decision_status) if stored.decision_status else None,
+        )
+
+
+class TraceStepOut(BaseModel):
+    step: int
+    tool: str
+    arguments: dict
+    result: dict | None
+
+
+class InvestigationOut(BaseModel):
+    invoice_id: UUID
+    agent_investigation_id: UUID
+    model: str
+    recommendation: Recommendation
+    reasoning_summary: str
+    concerns: list[str]
+    tool_call_count: int
+    steps: list[TraceStepOut]
+    decision_status: DecisionStatus
+    decision_reasoning: str
+    policy_version: str
+
+    @classmethod
+    def from_results(
+        cls, invoice_id: UUID, investigation: AgentInvestigationResult, decision: DecisionResult
+    ) -> "InvestigationOut":
+        return cls(
+            invoice_id=invoice_id,
+            agent_investigation_id=investigation.id,
+            model=investigation.model,
+            recommendation=investigation.recommendation,
+            reasoning_summary=investigation.reasoning_summary,
+            concerns=investigation.concerns,
+            tool_call_count=investigation.tool_call_count,
+            steps=[TraceStepOut(**step) for step in to_trace_steps(investigation.trace)],
+            decision_status=decision.decision_status,
+            decision_reasoning=decision.decision_reasoning,
+            policy_version=decision.policy_version,
+        )
+
+    @classmethod
+    def from_records(
+        cls, invoice_id: UUID, investigation: AgentInvestigationRecord, decision: InvoiceDecisionRecord
+    ) -> "InvestigationOut":
+        return cls(
+            invoice_id=invoice_id,
+            agent_investigation_id=investigation.id,
+            model=investigation.model,
+            recommendation=Recommendation(investigation.recommendation),
+            reasoning_summary=investigation.reasoning_summary,
+            concerns=investigation.concerns,
+            tool_call_count=investigation.tool_call_count,
+            steps=[TraceStepOut(**step) for step in to_trace_steps(investigation.trace)],
+            decision_status=DecisionStatus(decision.decision),
+            decision_reasoning=decision.decision_reasoning,
+            policy_version=decision.policy_version,
         )

@@ -32,6 +32,7 @@ class InvoiceRecord(Base):
     total_amount: Mapped[Decimal] = mapped_column(MONEY)
 
     status: Mapped[str]
+    decision_status: Mapped[str | None]
     source_filename: Mapped[str | None]
 
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
@@ -48,6 +49,9 @@ class InvoiceRecord(Base):
     )
     agent_investigations: Mapped[list["AgentInvestigationRecord"]] = relationship(
         back_populates="invoice", cascade="all, delete-orphan", order_by="AgentInvestigationRecord.created_at"
+    )
+    decisions: Mapped[list["InvoiceDecisionRecord"]] = relationship(
+        back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceDecisionRecord.created_at"
     )
 
 
@@ -117,3 +121,22 @@ class AgentInvestigationRecord(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     invoice: Mapped["InvoiceRecord"] = relationship(back_populates="agent_investigations")
+
+
+class InvoiceDecisionRecord(Base):
+    __tablename__ = "invoice_decisions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id", ondelete="CASCADE"))
+    agent_investigation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_investigations.id", ondelete="CASCADE")
+    )
+
+    agent_recommendation: Mapped[str]
+    decision: Mapped[str]
+    decision_reasoning: Mapped[str] = mapped_column(Text)
+    policy_version: Mapped[str]
+
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    invoice: Mapped["InvoiceRecord"] = relationship(back_populates="decisions")

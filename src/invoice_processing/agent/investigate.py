@@ -25,8 +25,10 @@ def investigate_invoice(
 
     result = run_investigation(stored, raw_text, session, client=client)
 
+    investigation_id = uuid.uuid4()
     session.add(
         AgentInvestigationRecord(
+            id=investigation_id,
             invoice_id=invoice_id,
             model=result.model,
             recommendation=result.recommendation,
@@ -40,4 +42,5 @@ def investigate_invoice(
     )
     session.commit()
 
+    result.id = investigation_id
     return result

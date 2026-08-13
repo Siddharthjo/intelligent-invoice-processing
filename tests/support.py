@@ -13,6 +13,7 @@ def build_invoice_pdf(
     vendor_name: str = "Acme Supplies Inc.",
     issue_date: str = "2026-01-15",
     due_date: str = "2026-02-14",
+    po_number: str | None = None,
     line_items: tuple[tuple[str, str, str, str], ...] = (
         ("Widget A", "2", "10.00", "20.00"),
         ("Widget B", "1", "30.00", "30.00"),
@@ -30,6 +31,8 @@ def build_invoice_pdf(
         f"Invoice Date: {issue_date}",
         f"Due Date: {due_date}",
     ]
+    if po_number:
+        header_lines.append(f"PO Number: {po_number}")
     table_data = [["Description", "Qty", "Unit Price", "Amount"], *line_items]
     footer_lines = [
         f"Subtotal: ${subtotal}",

@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from invoice_processing.domain.enums import ExtractionMethod, InvoiceStatus
 from invoice_processing.domain.invoice import Invoice, LineItem, Party
 from invoice_processing.persistence.orm_models import (
+    AgentInvestigationRecord,
+    InvoiceDecisionRecord,
     InvoiceRecord,
     LineItemRecord,
     RawExtractionRecord,
@@ -21,6 +23,7 @@ class StoredInvoice:
     invoice: Invoice
     source_filename: str | None
     validation_issues: list[ValidationIssue]
+    decision_status: str | None
 
 
 class InvoiceRepository:
@@ -114,6 +117,19 @@ class InvoiceRepository:
         stmt = select(RawExtractionRecord.raw_text).where(RawExtractionRecord.invoice_id == invoice_id)
         return self._session.execute(stmt).scalars().first()
 
+    def update_decision_status(self, invoice_id: uuid.UUID, decision_status: str) -> None:
+        record = self._session.get(InvoiceRecord, invoice_id)
+        if record is not None:
+            record.decision_status = decision_status
+
+    def get_latest_investigation_and_decision(
+        self, invoice_id: uuid.UUID
+    ) -> tuple[AgentInvestigationRecord, InvoiceDecisionRecord] | None:
+        record = self._session.get(InvoiceRecord, invoice_id)
+        if record is None or not record.agent_investigations or not record.decisions:
+            return None
+        return record.agent_investigations[-1], record.decisions[-1]
+
 
 def _to_domain(record: InvoiceRecord) -> Invoice:
     return Invoice(
@@ -151,4 +167,5 @@ def _to_stored(record: InvoiceRecord) -> StoredInvoice:
             )
             for issue in record.validation_issues
         ],
+        decision_status=record.decision_status,
     )

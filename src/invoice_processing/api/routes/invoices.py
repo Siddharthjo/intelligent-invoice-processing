@@ -4,9 +4,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, UploadFile, status
 
+from invoice_processing.agent.client import AgentNotConfiguredError
+from invoice_processing.agent.investigate import InvoiceNotFoundError, investigate_invoice
 from invoice_processing.api.deps import SessionDep
-from invoice_processing.api.schemas import InvoiceOut, InvoiceSummaryOut
+from invoice_processing.api.schemas import InvestigationOut, InvoiceOut, InvoiceSummaryOut
 from invoice_processing.config import get_settings
+from invoice_processing.decision.apply import apply_decision
 from invoice_processing.extraction.base import ExtractionError
 from invoice_processing.parsing.mapper import MappingError
 from invoice_processing.persistence.repository import InvoiceRepository
@@ -51,3 +54,32 @@ async def get_invoice(invoice_id: UUID, session: SessionDep) -> InvoiceOut:
 async def list_invoices(session: SessionDep, limit: int = 50, offset: int = 0) -> list[InvoiceSummaryOut]:
     stored = InvoiceRepository(session).list(limit=limit, offset=offset)
     return [InvoiceSummaryOut.from_stored(item) for item in stored]
+
+
+@router.post("/{invoice_id}/investigate", response_model=InvestigationOut)
+async def investigate(invoice_id: UUID, session: SessionDep) -> InvestigationOut:
+    try:
+        investigation = investigate_invoice(invoice_id, session)
+    except InvoiceNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except AgentNotConfiguredError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+
+    decision = apply_decision(invoice_id, investigation.id, investigation.recommendation, session)
+    return InvestigationOut.from_results(invoice_id, investigation, decision)
+
+
+@router.get("/{invoice_id}/investigation", response_model=InvestigationOut)
+async def get_latest_investigation(invoice_id: UUID, session: SessionDep) -> InvestigationOut:
+    repository = InvoiceRepository(session)
+    if repository.get(invoice_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No invoice found with id '{invoice_id}'.")
+
+    latest = repository.get_latest_investigation_and_decision(invoice_id)
+    if latest is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"No investigation has been run yet for invoice '{invoice_id}'."
+        )
+
+    investigation, decision = latest
+    return InvestigationOut.from_records(invoice_id, investigation, decision)
