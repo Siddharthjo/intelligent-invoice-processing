@@ -1,0 +1,48 @@
+[project]
+name = "invoice-processing"
+version = "0.1.0"
+description = "Intelligent Invoice Processing - vertical slice: PDF extraction to validated PostgreSQL storage"
+authors = [
+    {name = "Siddharth Hiriyan Joghee"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<4.0"
+dependencies = [
+    "fastapi (>=0.141.1,<0.142.0)",
+    "uvicorn[standard] (>=0.52.2,<0.53.0)",
+    "pydantic (>=2)",
+    "pydantic-settings (>=2.15.0,<3.0.0)",
+    "sqlalchemy (>=2)",
+    "alembic (>=1.19.1,<2.0.0)",
+    "psycopg[binary] (>=3.3.4,<4.0.0)",
+    "pdfplumber (>=0.11.10,<0.12.0)",
+    "pypdf (>=6.15.0,<7.0.0)",
+    "pytesseract (>=0.3.13,<0.4.0)",
+    "pdf2image (>=1.17.0,<2.0.0)",
+    "python-multipart (>=0.0.32,<0.0.33)",
+    "python-dateutil (>=2.9.0.post0,<3.0.0)"
+]
+
+
+[tool.poetry]
+packages = [{ include = "invoice_processing", from = "src" }]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.1.1"
+pytest-cov = "^7.1.0"
+ruff = "^0.16.2"
+httpx = "^0.28.1"
+reportlab = "^5.0.0"
+
+[project.scripts]
+process-invoice = "invoice_processing.cli:main"
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
