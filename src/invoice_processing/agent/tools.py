@@ -16,6 +16,7 @@ SUBMIT_RECOMMENDATION_TOOL_NAME = "submit_recommendation"
 class ToolContext:
     session: Session
     invoice_id: uuid.UUID
+    raw_text: str
 
 
 GET_SUPPLIER_TOOL = {
@@ -43,14 +44,19 @@ GET_PURCHASE_ORDER_TOOL = {
         "name": "get_purchase_order",
         "description": (
             "Look up a purchase order by PO number in the mock ERP data, for three-way matching. "
-            "PO numbers may only appear in the invoice's raw extracted text, not as a structured field."
+            "Only call this with a PO number that appears verbatim in the invoice's raw extracted "
+            "text -- never a guess, inference, or a PO number seen on a different invoice. If the "
+            "raw text has no explicit PO reference, do not call this tool at all."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "po_number": {
                     "type": "string",
-                    "description": "The purchase order number, e.g. 'PO-1001'.",
+                    "description": (
+                        "A PO number copied verbatim from the invoice's raw extracted text, e.g. "
+                        "'PO-1001'. Never a guessed or inferred value."
+                    ),
                 }
             },
             "required": ["po_number"],
@@ -122,7 +128,8 @@ SUBMIT_RECOMMENDATION_TOOL = {
                     "items": {"type": "string"},
                     "description": (
                         "Short tags for specific issues found, e.g. 'PO_AMOUNT_MISMATCH', "
-                        "'UNKNOWN_SUPPLIER', 'DUPLICATE_SUSPECTED'. Empty if none."
+                        "'UNKNOWN_SUPPLIER', 'DUPLICATE_SUSPECTED', 'NO_PO_REFERENCE_FOUND'. "
+                        "Empty if none."
                     ),
                 },
             },
@@ -157,7 +164,17 @@ def _handle_get_supplier(arguments: dict, context: ToolContext) -> dict:
 
 
 def _handle_get_purchase_order(arguments: dict, context: ToolContext) -> dict:
-    po = PurchaseOrderRepository(context.session).get_by_number(arguments["po_number"])
+    po_number = arguments["po_number"]
+    if po_number.lower() not in context.raw_text.lower():
+        return {
+            "found": False,
+            "rejected_reason": (
+                "po_number does not appear verbatim in this invoice's raw extracted text; "
+                "lookup was not performed."
+            ),
+        }
+
+    po = PurchaseOrderRepository(context.session).get_by_number(po_number)
     if po is None:
         return {"found": False}
     return {

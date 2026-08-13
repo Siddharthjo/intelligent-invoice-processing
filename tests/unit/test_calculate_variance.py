@@ -2,7 +2,7 @@ import uuid
 
 from invoice_processing.agent.tools import TOOL_HANDLERS, ToolContext
 
-_CONTEXT = ToolContext(session=None, invoice_id=uuid.uuid4())
+_CONTEXT = ToolContext(session=None, invoice_id=uuid.uuid4(), raw_text="")
 
 
 def _variance(invoice_amount, po_amount) -> dict:

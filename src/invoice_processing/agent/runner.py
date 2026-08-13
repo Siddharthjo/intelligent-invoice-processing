@@ -15,6 +15,22 @@ from invoice_processing.agent.tools import (
 from invoice_processing.config import get_settings
 from invoice_processing.persistence.repository import StoredInvoice
 
+_NO_PO_REFERENCE_CONCERN = "NO_PO_REFERENCE_FOUND"
+
+
+def _apply_policy_overrides(
+    recommendation: Recommendation, reasoning_summary: str, concerns: list[str]
+) -> tuple[Recommendation, str]:
+    """Deterministic backstop for policies the model doesn't reliably self-enforce via prompting alone."""
+    if _NO_PO_REFERENCE_CONCERN in concerns and recommendation == Recommendation.AUTO_APPROVE:
+        overridden_reasoning = (
+            f"{reasoning_summary} [Overridden to human_review: policy requires human review "
+            "whenever no PO reference was found in the invoice text, regardless of the "
+            "model's own recommendation.]"
+        )
+        return Recommendation.HUMAN_REVIEW, overridden_reasoning
+    return recommendation, reasoning_summary
+
 
 def _build_user_message(stored: StoredInvoice, raw_text: str) -> str:
     invoice = stored.invoice
@@ -68,7 +84,7 @@ def run_investigation(
 ) -> AgentInvestigationResult:
     settings = get_settings()
     client = client or get_openai_client()
-    context = ToolContext(session=session, invoice_id=stored.id)
+    context = ToolContext(session=session, invoice_id=stored.id, raw_text=raw_text)
 
     messages: list[dict] = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -101,10 +117,14 @@ def run_investigation(
             arguments = json.loads(tool_call.function.arguments)
 
             if tool_call.function.name == SUBMIT_RECOMMENDATION_TOOL_NAME:
+                concerns = arguments.get("concerns", [])
+                recommendation, reasoning_summary = _apply_policy_overrides(
+                    Recommendation(arguments["recommendation"]), arguments["reasoning"], concerns
+                )
                 return AgentInvestigationResult(
-                    recommendation=Recommendation(arguments["recommendation"]),
-                    reasoning_summary=arguments["reasoning"],
-                    concerns=arguments.get("concerns", []),
+                    recommendation=recommendation,
+                    reasoning_summary=reasoning_summary,
+                    concerns=concerns,
                     trace=messages,
                     tool_call_count=tool_call_count,
                     model=settings.agent_model,
