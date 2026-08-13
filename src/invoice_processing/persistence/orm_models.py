@@ -2,7 +2,8 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Numeric, Text, UniqueConstraint, func
+from sqlalchemy import ForeignKey, Numeric, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from invoice_processing.persistence.db import Base
@@ -12,7 +13,6 @@ MONEY = Numeric(14, 2)
 
 class InvoiceRecord(Base):
     __tablename__ = "invoices"
-    __table_args__ = (UniqueConstraint("vendor_name", "invoice_number", name="uq_invoice_vendor_number"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
 
@@ -45,6 +45,9 @@ class InvoiceRecord(Base):
     )
     raw_extraction: Mapped["RawExtractionRecord | None"] = relationship(
         back_populates="invoice", cascade="all, delete-orphan"
+    )
+    agent_investigations: Mapped[list["AgentInvestigationRecord"]] = relationship(
+        back_populates="invoice", cascade="all, delete-orphan", order_by="AgentInvestigationRecord.created_at"
     )
 
 
@@ -94,3 +97,23 @@ class RawExtractionRecord(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     invoice: Mapped["InvoiceRecord"] = relationship(back_populates="raw_extraction")
+
+
+class AgentInvestigationRecord(Base):
+    __tablename__ = "agent_investigations"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id", ondelete="CASCADE"))
+
+    model: Mapped[str]
+    recommendation: Mapped[str]
+    reasoning_summary: Mapped[str] = mapped_column(Text)
+    concerns: Mapped[list[str]] = mapped_column(JSONB)
+    trace: Mapped[list[dict]] = mapped_column(JSONB)
+    tool_call_count: Mapped[int]
+    prompt_tokens: Mapped[int | None]
+    completion_tokens: Mapped[int | None]
+
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    invoice: Mapped["InvoiceRecord"] = relationship(back_populates="agent_investigations")

@@ -27,12 +27,23 @@ class InvoiceRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def duplicate_exists(self, *, vendor_name: str, invoice_number: str) -> bool:
+    def duplicate_exists(
+        self, *, vendor_name: str, invoice_number: str, exclude_invoice_id: uuid.UUID | None = None
+    ) -> bool:
+        return self.find_duplicate(
+            vendor_name=vendor_name, invoice_number=invoice_number, exclude_invoice_id=exclude_invoice_id
+        ) is not None
+
+    def find_duplicate(
+        self, *, vendor_name: str, invoice_number: str, exclude_invoice_id: uuid.UUID | None = None
+    ) -> uuid.UUID | None:
         stmt = select(InvoiceRecord.id).where(
             InvoiceRecord.vendor_name == vendor_name,
             InvoiceRecord.invoice_number == invoice_number,
         )
-        return self._session.execute(stmt).first() is not None
+        if exclude_invoice_id is not None:
+            stmt = stmt.where(InvoiceRecord.id != exclude_invoice_id)
+        return self._session.execute(stmt).scalars().first()
 
     def save(
         self,
@@ -98,6 +109,10 @@ class InvoiceRepository:
         stmt = select(InvoiceRecord).order_by(InvoiceRecord.created_at.desc()).limit(limit).offset(offset)
         records = self._session.execute(stmt).scalars().all()
         return [_to_stored(record) for record in records]
+
+    def get_raw_text(self, invoice_id: uuid.UUID) -> str | None:
+        stmt = select(RawExtractionRecord.raw_text).where(RawExtractionRecord.invoice_id == invoice_id)
+        return self._session.execute(stmt).scalars().first()
 
 
 def _to_domain(record: InvoiceRecord) -> Invoice:

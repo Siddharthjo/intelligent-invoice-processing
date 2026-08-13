@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 
 import pytest
@@ -14,20 +15,21 @@ def client(db_session: Session) -> TestClient:
 
 
 def test_upload_and_retrieve_invoice(client: TestClient, tmp_path: Path):
+    invoice_number = f"INV-{uuid.uuid4().hex[:8]}"
     pdf_path = tmp_path / "invoice.pdf"
-    build_invoice_pdf(pdf_path, invoice_number="INV-API-1")
+    build_invoice_pdf(pdf_path, invoice_number=invoice_number)
 
     with open(pdf_path, "rb") as f:
         response = client.post("/invoices", files={"file": ("invoice.pdf", f, "application/pdf")})
 
     assert response.status_code == 201
     body = response.json()
-    assert body["invoice_number"] == "INV-API-1"
+    assert body["invoice_number"] == invoice_number
     assert body["status"] == "valid"
 
     get_response = client.get(f"/invoices/{body['id']}")
     assert get_response.status_code == 200
-    assert get_response.json()["invoice_number"] == "INV-API-1"
+    assert get_response.json()["invoice_number"] == invoice_number
 
 
 def test_upload_rejects_non_pdf(client: TestClient, tmp_path: Path):

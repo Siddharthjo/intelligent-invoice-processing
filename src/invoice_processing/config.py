@@ -1,3 +1,4 @@
+from decimal import Decimal
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,6 +14,11 @@ class Settings(BaseSettings):
     ocr_enabled: bool = True
     ocr_dpi: int = 300
     text_layer_min_chars_per_page: int = 20
+
+    openai_api_key: str | None = None
+    agent_model: str = "gpt-4o-mini"
+    agent_max_tool_turns: int = 8
+    agent_po_variance_tolerance_pct: Decimal = Decimal("0.02")
 
 
 @lru_cache
