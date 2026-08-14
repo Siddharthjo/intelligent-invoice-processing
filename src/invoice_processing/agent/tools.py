@@ -7,6 +7,7 @@ from enum import StrEnum
 from sqlalchemy.orm import Session
 
 from invoice_processing.config import get_settings
+from invoice_processing.decision.result import DecisionStatus
 from invoice_processing.erp_mock.repository import PurchaseOrderRepository, SupplierRepository
 from invoice_processing.persistence.repository import InvoiceRepository
 
@@ -167,6 +168,49 @@ SUBMIT_RECOMMENDATION_TOOL = {
     },
 }
 
+POST_INVOICE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "post_invoice",
+        "description": (
+            "Mark an invoice as approved and posted for payment. Human-only action -- never "
+            "granted to the investigating agent."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "invoice_id": {"type": "string", "description": "UUID of the invoice to post."}
+            },
+            "required": ["invoice_id"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+RETURN_TO_VENDOR_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "return_to_vendor",
+        "description": (
+            "Mark an invoice as returned to the vendor, with a reason. Human-only action -- "
+            "never granted to the investigating agent."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "invoice_id": {"type": "string", "description": "UUID of the invoice to return."},
+                "reason": {
+                    "type": "string",
+                    "description": "Why this invoice is being returned to the vendor.",
+                },
+            },
+            "required": ["invoice_id", "reason"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
 def _handle_get_supplier(arguments: dict, context: ToolContext) -> dict:
     supplier = SupplierRepository(context.session).get_by_name(arguments["name"])
     if supplier is None:
@@ -237,6 +281,20 @@ def _handle_calculate_variance(arguments: dict, context: ToolContext) -> dict:
     }
 
 
+def _handle_post_invoice(arguments: dict, context: ToolContext) -> dict:
+    invoice_id = uuid.UUID(arguments["invoice_id"])
+    InvoiceRepository(context.session).update_decision_status(invoice_id, DecisionStatus.AUTO_POSTED)
+    return {"posted": True, "invoice_id": str(invoice_id)}
+
+
+def _handle_return_to_vendor(arguments: dict, context: ToolContext) -> dict:
+    invoice_id = uuid.UUID(arguments["invoice_id"])
+    InvoiceRepository(context.session).update_decision_status(
+        invoice_id, DecisionStatus.RETURNED_TO_VENDOR
+    )
+    return {"returned": True, "invoice_id": str(invoice_id), "reason": arguments["reason"]}
+
+
 TOOL_REGISTRY: dict[str, ToolDefinition] = {
     "get_supplier": ToolDefinition(
         name="get_supplier",
@@ -261,6 +319,18 @@ TOOL_REGISTRY: dict[str, ToolDefinition] = {
         schema=CALCULATE_VARIANCE_TOOL,
         handler=_handle_calculate_variance,
         permission=ToolPermission.READ,
+    ),
+    "post_invoice": ToolDefinition(
+        name="post_invoice",
+        schema=POST_INVOICE_TOOL,
+        handler=_handle_post_invoice,
+        permission=ToolPermission.WRITE,
+    ),
+    "return_to_vendor": ToolDefinition(
+        name="return_to_vendor",
+        schema=RETURN_TO_VENDOR_TOOL,
+        handler=_handle_return_to_vendor,
+        permission=ToolPermission.WRITE,
     ),
 }
 

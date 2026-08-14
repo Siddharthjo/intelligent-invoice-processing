@@ -10,15 +10,28 @@ from invoice_processing.agent.tools import (
 
 _CONTEXT = ToolContext(session=None, invoice_id=uuid.uuid4(), raw_text="")
 
+_READ_TOOLS = {"get_supplier", "get_purchase_order", "check_duplicate", "calculate_variance"}
+_WRITE_TOOLS = {"post_invoice", "return_to_vendor"}
 
-def test_all_registered_tools_are_read_only():
+
+def test_registry_has_the_expected_read_and_write_tools():
     assert TOOL_REGISTRY, "registry should not be empty"
-    assert all(d.permission == ToolPermission.READ for d in TOOL_REGISTRY.values())
+    read_names = {name for name, d in TOOL_REGISTRY.items() if d.permission == ToolPermission.READ}
+    write_names = {name for name, d in TOOL_REGISTRY.items() if d.permission == ToolPermission.WRITE}
+    assert read_names == _READ_TOOLS
+    assert write_names == _WRITE_TOOLS
 
 
-def test_allowed_schemas_include_registered_tools_plus_submit_recommendation():
+def test_allowed_schemas_for_read_only_exclude_write_tools():
     names = {s["function"]["name"] for s in get_allowed_tool_schemas(frozenset({ToolPermission.READ}))}
-    assert names == set(TOOL_REGISTRY.keys()) | {"submit_recommendation"}
+    assert names == _READ_TOOLS | {"submit_recommendation"}
+    assert not names & _WRITE_TOOLS
+
+
+def test_allowed_schemas_for_write_only_exclude_read_tools():
+    names = {s["function"]["name"] for s in get_allowed_tool_schemas(frozenset({ToolPermission.WRITE}))}
+    assert names == _WRITE_TOOLS | {"submit_recommendation"}
+    assert not names & _READ_TOOLS
 
 
 def test_allowed_schemas_exclude_tools_outside_the_permission_set():
@@ -59,3 +72,25 @@ def test_dispatch_rejects_an_unregistered_tool_name():
     )
     assert dispatch.permitted is False
     assert dispatch.result["error"] == "tool_not_permitted"
+
+
+def test_dispatch_rejects_write_tools_under_read_only_permissions():
+    """The investigating agent's default permission set must never reach a write tool."""
+    dispatch = dispatch_tool(
+        "post_invoice",
+        {"invoice_id": str(uuid.uuid4())},
+        _CONTEXT,
+        frozenset({ToolPermission.READ}),
+    )
+    assert dispatch.permitted is False
+    assert dispatch.result["error"] == "tool_not_permitted"
+
+
+def test_dispatch_rejects_read_tools_under_write_only_permissions():
+    dispatch = dispatch_tool(
+        "get_supplier",
+        {"name": "Acme"},
+        _CONTEXT,
+        frozenset({ToolPermission.WRITE}),
+    )
+    assert dispatch.permitted is False

@@ -53,6 +53,9 @@ class InvoiceRecord(Base):
     decisions: Mapped[list["InvoiceDecisionRecord"]] = relationship(
         back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceDecisionRecord.created_at"
     )
+    actions: Mapped[list["InvoiceActionRecord"]] = relationship(
+        back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceActionRecord.created_at"
+    )
 
 
 class LineItemRecord(Base):
@@ -142,3 +145,21 @@ class InvoiceDecisionRecord(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     invoice: Mapped["InvoiceRecord"] = relationship(back_populates="decisions")
+
+
+class InvoiceActionRecord(Base):
+    __tablename__ = "invoice_actions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id", ondelete="CASCADE"))
+    decision_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("invoice_decisions.id", ondelete="CASCADE")
+    )
+
+    action: Mapped[str]
+    reason: Mapped[str | None] = mapped_column(Text)
+    resulting_decision_status: Mapped[str]
+
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    invoice: Mapped["InvoiceRecord"] = relationship(back_populates="actions")

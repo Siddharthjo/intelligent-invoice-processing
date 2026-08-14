@@ -49,6 +49,8 @@
     cursor: pointer;
   }
   button:disabled { background: #b7c6ec; cursor: not-allowed; }
+  button.secondary { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+  button.secondary:disabled { color: var(--muted); cursor: not-allowed; }
   table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 0.5rem; }
   th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; }
@@ -93,6 +95,15 @@
   .decision-panel .reasoning { font-size: 0.9rem; margin: 0.75rem auto; max-width: 560px; }
   .concerns { margin-top: 0.5rem; }
   .concerns .badge { background: var(--red-bg); color: var(--red); margin: 0.15rem; }
+  #human-actions { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+  #human-actions .row { justify-content: center; }
+  #return-reason-input {
+    width: 100%; max-width: 420px; font-family: inherit; font-size: 0.85rem;
+    padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; resize: vertical;
+  }
+  #action-result { margin-top: 0.75rem; font-size: 0.85rem; font-weight: 600; }
+  #action-result.posted { color: var(--green); }
+  #action-result.returned { color: var(--red); }
   .muted { color: var(--muted); font-size: 0.85rem; }
   .error { color: var(--red); font-size: 0.85rem; margin-top: 0.5rem; }
   .spinner {
@@ -150,6 +161,22 @@
       <p class="reasoning" id="decision-reasoning"></p>
       <div id="decision-concerns" class="concerns"></div>
       <p class="muted" id="decision-meta"></p>
+
+      <div id="human-actions" class="hidden">
+        <div class="row" id="action-buttons">
+          <button id="approve-post-button">Approve &amp; Post</button>
+          <button id="return-to-vendor-button" class="secondary">Return to Vendor</button>
+        </div>
+        <div id="return-reason-panel" class="hidden">
+          <textarea id="return-reason-input" rows="2" placeholder="Reason for returning to vendor..."></textarea>
+          <div class="row">
+            <button id="confirm-return-button">Confirm return</button>
+            <button id="cancel-return-button" class="secondary">Cancel</button>
+          </div>
+        </div>
+        <div id="action-error" class="error hidden"></div>
+        <div id="action-result" class="hidden"></div>
+      </div>
     </div>
   </section>
 </main>
@@ -158,6 +185,7 @@
   const el = (id) => document.getElementById(id);
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   let currentInvoiceId = null;
+  let currentDecisionId = null;
 
   function badge(status) {
     return `<span class="badge ${status}">${status}</span>`;
@@ -234,6 +262,8 @@
   };
 
   function renderDecision(investigation) {
+    currentDecisionId = investigation.decision_id;
+
     el("decision-badge").innerHTML =
       `${badge(investigation.decision_status)} &nbsp; <span class="muted">(agent recommended: ${investigation.recommendation})</span>`;
     el("decision-reasoning").textContent = investigation.reasoning_summary;
@@ -257,8 +287,74 @@
       `${investigation.model} · ${investigation.tool_call_count} tool calls · ${tokens} · ` +
       `${investigation.latency_ms}ms · policy ${investigation.policy_version} · ${investigation.termination_reason}`;
 
+    // Reset the human-action panel for this decision.
+    el("action-error").classList.add("hidden");
+    el("action-result").classList.add("hidden");
+    el("return-reason-panel").classList.add("hidden");
+    el("return-reason-input").value = "";
+    el("action-buttons").classList.remove("hidden");
+    el("approve-post-button").disabled = false;
+    el("return-to-vendor-button").disabled = false;
+
+    el("human-actions").classList.toggle("hidden", investigation.decision_status !== "pending_review");
+
     el("decision-panel").classList.remove("hidden");
   }
+
+  async function executeDecision(action, reason) {
+    el("action-error").classList.add("hidden");
+    el("approve-post-button").disabled = true;
+    el("return-to-vendor-button").disabled = true;
+    el("confirm-return-button").disabled = true;
+
+    try {
+      const response = await fetch(
+        `/invoices/${currentInvoiceId}/decisions/${currentDecisionId}/execute`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, reason: reason || null }),
+        }
+      );
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Action failed.");
+
+      el("action-buttons").classList.add("hidden");
+      el("return-reason-panel").classList.add("hidden");
+
+      const resultEl = el("action-result");
+      resultEl.textContent =
+        action === "post" ? "✓ Approved and posted by human review." : `✓ Returned to vendor: ${body.reason}`;
+      resultEl.className = action === "post" ? "posted" : "returned";
+      resultEl.classList.remove("hidden");
+    } catch (err) {
+      el("action-error").textContent = err.message;
+      el("action-error").classList.remove("hidden");
+      el("approve-post-button").disabled = false;
+      el("return-to-vendor-button").disabled = false;
+      el("confirm-return-button").disabled = false;
+    }
+  }
+
+  el("approve-post-button").addEventListener("click", () => executeDecision("post", null));
+
+  el("return-to-vendor-button").addEventListener("click", () => {
+    el("return-reason-panel").classList.remove("hidden");
+  });
+
+  el("cancel-return-button").addEventListener("click", () => {
+    el("return-reason-panel").classList.add("hidden");
+  });
+
+  el("confirm-return-button").addEventListener("click", () => {
+    const reason = el("return-reason-input").value.trim();
+    if (!reason) {
+      el("action-error").textContent = "Please provide a reason before confirming.";
+      el("action-error").classList.remove("hidden");
+      return;
+    }
+    executeDecision("return", reason);
+  });
 
   el("investigate-button").addEventListener("click", async () => {
     if (!currentInvoiceId) return;

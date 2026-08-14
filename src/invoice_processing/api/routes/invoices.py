@@ -7,9 +7,20 @@ from fastapi import APIRouter, HTTPException, UploadFile, status
 from invoice_processing.agent.client import AgentNotConfiguredError
 from invoice_processing.agent.investigate import InvoiceNotFoundError, investigate_invoice
 from invoice_processing.api.deps import SessionDep
-from invoice_processing.api.schemas import InvestigationOut, InvoiceOut, InvoiceSummaryOut
+from invoice_processing.api.schemas import (
+    DecisionExecutionOut,
+    ExecuteDecisionRequest,
+    InvestigationOut,
+    InvoiceOut,
+    InvoiceSummaryOut,
+)
 from invoice_processing.config import get_settings
 from invoice_processing.decision.apply import apply_decision
+from invoice_processing.decision.execute import (
+    DecisionNotFoundError,
+    DecisionNotPendingReviewError,
+    execute_decision,
+)
 from invoice_processing.extraction.base import ExtractionError
 from invoice_processing.parsing.mapper import MappingError
 from invoice_processing.persistence.repository import InvoiceRepository
@@ -83,3 +94,17 @@ async def get_latest_investigation(invoice_id: UUID, session: SessionDep) -> Inv
 
     investigation, decision = latest
     return InvestigationOut.from_records(invoice_id, investigation, decision)
+
+
+@router.post("/{invoice_id}/decisions/{decision_id}/execute", response_model=DecisionExecutionOut)
+async def execute(
+    invoice_id: UUID, decision_id: UUID, body: ExecuteDecisionRequest, session: SessionDep
+) -> DecisionExecutionOut:
+    try:
+        result = execute_decision(invoice_id, decision_id, body.action, body.reason, session)
+    except DecisionNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except DecisionNotPendingReviewError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+    return DecisionExecutionOut.from_result(result)

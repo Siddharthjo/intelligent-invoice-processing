@@ -1,12 +1,12 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from invoice_processing.agent.result import AgentInvestigationResult, Recommendation, TerminationReason
 from invoice_processing.agent.trace_view import to_trace_steps
-from invoice_processing.decision.result import DecisionResult, DecisionStatus
+from invoice_processing.decision.result import ActionType, DecisionResult, DecisionStatus, ExecutionResult
 from invoice_processing.domain.enums import InvoiceStatus
 from invoice_processing.domain.invoice import Invoice
 from invoice_processing.persistence.orm_models import AgentInvestigationRecord, InvoiceDecisionRecord
@@ -140,6 +140,7 @@ class InvestigationOut(BaseModel):
     latency_ms: int
     termination_reason: TerminationReason
     steps: list[TraceStepOut]
+    decision_id: UUID
     decision_status: DecisionStatus
     decision_reasoning: str
     policy_version: str
@@ -162,6 +163,7 @@ class InvestigationOut(BaseModel):
             latency_ms=investigation.latency_ms,
             termination_reason=investigation.termination_reason,
             steps=[TraceStepOut(**step) for step in to_trace_steps(investigation.trace)],
+            decision_id=decision.id,
             decision_status=decision.decision_status,
             decision_reasoning=decision.decision_reasoning,
             policy_version=decision.policy_version,
@@ -185,6 +187,7 @@ class InvestigationOut(BaseModel):
             latency_ms=investigation.latency_ms,
             termination_reason=TerminationReason(investigation.termination_reason),
             steps=[TraceStepOut(**step) for step in to_trace_steps(investigation.trace)],
+            decision_id=decision.id,
             decision_status=DecisionStatus(decision.decision),
             decision_reasoning=decision.decision_reasoning,
             policy_version=decision.policy_version,
@@ -195,3 +198,34 @@ def _total_tokens(prompt_tokens: int | None, completion_tokens: int | None) -> i
     if prompt_tokens is None or completion_tokens is None:
         return None
     return prompt_tokens + completion_tokens
+
+
+class ExecuteDecisionRequest(BaseModel):
+    action: ActionType
+    reason: str | None = None
+
+    @model_validator(mode="after")
+    def _require_reason_for_return(self) -> "ExecuteDecisionRequest":
+        if self.action == ActionType.RETURN and not self.reason:
+            raise ValueError("reason is required when action is 'return'.")
+        return self
+
+
+class DecisionExecutionOut(BaseModel):
+    invoice_id: UUID
+    decision_id: UUID
+    action: ActionType
+    reason: str | None
+    resulting_decision_status: DecisionStatus
+    executed_at: datetime
+
+    @classmethod
+    def from_result(cls, result: ExecutionResult) -> "DecisionExecutionOut":
+        return cls(
+            invoice_id=result.invoice_id,
+            decision_id=result.decision_id,
+            action=result.action,
+            reason=result.reason,
+            resulting_decision_status=result.resulting_decision_status,
+            executed_at=result.executed_at,
+        )

@@ -130,6 +130,9 @@ class InvoiceRepository:
             return None
         return record.agent_investigations[-1], record.decisions[-1]
 
+    def get_decision(self, decision_id: uuid.UUID) -> InvoiceDecisionRecord | None:
+        return self._session.get(InvoiceDecisionRecord, decision_id)
+
 
 def _to_domain(record: InvoiceRecord) -> Invoice:
     return Invoice(
