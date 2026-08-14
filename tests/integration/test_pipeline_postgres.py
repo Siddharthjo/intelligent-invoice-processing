@@ -3,9 +3,9 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from invoice_processing.devtools.pdf_builder import build_invoice_pdf
 from invoice_processing.persistence.repository import InvoiceRepository
 from invoice_processing.pipeline.process_invoice import process_invoice
-from tests.support import build_invoice_pdf
 
 
 def test_process_invoice_persists_a_valid_invoice(db_session: Session, tmp_path: Path):

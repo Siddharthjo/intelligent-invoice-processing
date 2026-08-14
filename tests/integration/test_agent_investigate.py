@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 from invoice_processing.agent.investigate import investigate_invoice
 from invoice_processing.agent.result import Recommendation
 from invoice_processing.config import get_settings
+from invoice_processing.devtools.pdf_builder import build_invoice_pdf
 from invoice_processing.erp_mock.seed import seed_mock_erp_data
 from invoice_processing.persistence.orm_models import AgentInvestigationRecord
 from invoice_processing.pipeline.process_invoice import process_invoice
-from tests.support import build_invoice_pdf
 
 
 @pytest.fixture(scope="module", autouse=True)

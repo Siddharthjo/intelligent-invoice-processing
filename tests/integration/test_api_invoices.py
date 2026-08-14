@@ -5,8 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from invoice_processing.devtools.pdf_builder import build_invoice_pdf
 from invoice_processing.main import app
-from tests.support import build_invoice_pdf
 
 
 @pytest.fixture

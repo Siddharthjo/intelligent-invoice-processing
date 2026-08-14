@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 from invoice_processing.agent.result import Recommendation
 from invoice_processing.decision.apply import apply_decision
 from invoice_processing.decision.result import DecisionStatus
+from invoice_processing.devtools.pdf_builder import build_invoice_pdf
 from invoice_processing.persistence.orm_models import AgentInvestigationRecord
 from invoice_processing.persistence.repository import InvoiceRepository
 from invoice_processing.pipeline.process_invoice import process_invoice
-from tests.support import build_invoice_pdf
 
 
 def _make_investigation(session: Session, invoice_id: uuid.UUID, recommendation: Recommendation) -> uuid.UUID:

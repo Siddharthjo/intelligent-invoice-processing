@@ -26,7 +26,10 @@ dependencies = [
 
 
 [tool.poetry]
-packages = [{ include = "invoice_processing", from = "src" }]
+packages = [
+    { include = "invoice_processing", from = "src" },
+    { include = "evals" },
+]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.1.1"
@@ -38,6 +41,7 @@ reportlab = "^5.0.0"
 [project.scripts]
 process-invoice = "invoice_processing.cli:main"
 seed-mock-erp = "invoice_processing.erp_mock.seed:main"
+evaluate-agent = "evals.run:main"
 
 [tool.ruff]
 line-length = 110

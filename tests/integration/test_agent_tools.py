@@ -4,9 +4,9 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from invoice_processing.agent.tools import TOOL_HANDLERS, ToolContext
+from invoice_processing.devtools.pdf_builder import build_invoice_pdf
 from invoice_processing.erp_mock.seed import seed_mock_erp_data
 from invoice_processing.pipeline.process_invoice import process_invoice
-from tests.support import build_invoice_pdf
 
 
 def test_get_supplier_found_and_not_found(db_session: Session):
