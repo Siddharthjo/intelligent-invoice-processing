@@ -1,55 +1,132 @@
 # Intelligent Invoice Processing
 
-Vertical slice 1: **PDF invoice → extraction → canonical `Invoice` (Pydantic) → deterministic validation → PostgreSQL.**
+## Overview
 
-No agents, RAG, Kafka, frontend, cloud, or SAP integration yet — those come in later slices.
+A vertical-slice prototype of an enterprise accounts-payable invoice processing system: PDF invoice in, a posted-or-flagged decision out, with a full audit trail at every step. The interesting part isn't the extraction — it's what happens after: a tool-calling LLM agent investigates each invoice against mock ERP data (supplier status, purchase orders, duplicates), a deterministic policy layer converts its recommendation into a real business decision, and a human can act on it through controlled, permission-gated write actions. This is agentic business logic, not a PDF-to-JSON demo.
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    subgraph H1[" Human "]
+        A[Upload PDF]
+    end
+
+    subgraph D1[" Deterministic "]
+        B["Extraction<br/>text-layer (pdfplumber) + OCR fallback (Tesseract)"]
+        C["Parsing<br/>regex/heuristics to canonical domain.Invoice"]
+        D["Validation<br/>arithmetic, dates, currency, duplicate check"]
+        E[("Postgres<br/>invoices, line_items, validation_issues")]
+    end
+
+    subgraph AG[" Agentic "]
+        F["Investigation Agent<br/>OpenAI tool-calling loop"]
+        G["read-only tools vs mock ERP:<br/>get_supplier · get_purchase_order<br/>check_duplicate · calculate_variance"]
+    end
+
+    subgraph D2[" Deterministic "]
+        P["Decision Policy<br/>recommendation → decision_status<br/>+ safety overrides"]
+    end
+
+    subgraph H2[" Human "]
+        HA["Approve & Post /<br/>Return to Vendor"]
+    end
+
+    A --> B --> C --> D --> E --> F
+    F <--> G
+    F -->|recommendation + trace| P
+    P -->|auto_posted / returned_to_vendor| Z[Resolved]
+    P -->|pending_review| HA --> Z
 ```
-src/invoice_processing/
-├── main.py            # FastAPI app
-├── config.py           # settings (env-driven)
-├── api/                 # HTTP boundary: routes, request/response schemas
-├── domain/               # canonical Invoice/LineItem/Party Pydantic models
-├── extraction/            # PDF -> raw text/tables (text-layer + OCR fallback)
-├── parsing/                # raw text/tables -> domain.Invoice (regex/heuristics)
-├── validation/              # deterministic business rules over domain.Invoice
-├── persistence/              # SQLAlchemy ORM + repository + Postgres
-├── pipeline/                  # orchestrates extract -> parse -> validate -> persist
-└── cli.py                      # local CLI entrypoint
+
+`Extraction` is labeled Deterministic on the primary text-layer path; the OCR fallback is AI-assisted (a fixed-output ML model, not a reasoning step) but still not agentic — it never makes a judgment call. Every arrow into Postgres is append-only where it represents a decision: `agent_investigations`, `invoice_decisions`, and `invoice_actions` are three separate, ever-growing audit tables, not one row that gets overwritten.
+
+## Design decisions worth defending
+
+- **Domain model ≠ API schema.** `domain.Invoice` is the canonical business object that flows through extraction → validation; API response schemas (`InvoiceOut`, `InvestigationOut`, ...) are a separate, independently-evolving contract. `decision_status` deliberately lives *outside* `domain.Invoice` — it's workflow state (who's supposed to act next), not invoice data, and conflating the two would make the core model harder to reason about as the workflow grows.
+- **Extraction and parsing are 100% deterministic — no LLM.** Text-layer extraction and regex-based field parsing are reproducible, unit-testable without hitting an API, and cheap. An LLM would handle messier layouts better, but a first vertical slice needs the guarantees determinism buys, not maximum flexibility.
+- **The agent is a hand-rolled tool-calling loop, not a framework.** Full control over the permission boundary (`TOOL_REGISTRY`/`dispatch_tool`), termination semantics (max-turns, timeout), and exactly what's in every message — no framework abstraction between "what the model saw" and "what we can audit."
+- **"Agent proposes, deterministic code disposes."** The model's `recommendation` never directly sets `decision_status` — it goes through `policy.decide()` plus explicit override checks. This isn't hypothetical: an override caught the model auto-approving an invoice with no PO reference despite the prompt saying not to. Business-critical state transitions don't get to depend on the model reliably following instructions.
+- **Append-only audit tables everywhere.** `agent_investigations`, `invoice_decisions`, and `invoice_actions` are never updated in place. An AP system needs to answer "who decided this, and why" long after the fact, including across re-investigations of the same invoice.
+- **Read/write tool permissions are enforced in code, not convention.** Before any write tool existed, "the agent can only read" was true only because nothing else was defined. `TOOL_REGISTRY` tags every tool `READ`/`WRITE`; `dispatch_tool()` checks the caller's `allowed_permissions` before executing anything. When `post_invoice`/`return_to_vendor` were added, the investigating agent's default permission set (`{READ}`) meant it literally cannot call them — proven, not assumed.
+- **Synchronous request + client-side reveal, not WebSockets.** An investigation takes 5–20 seconds. Returning the full trace in one response and replaying it client-side with a staggered delay gets most of the "live" feel with none of the cost of a background task runner, incremental persistence, or connection lifecycle management — consistent with keeping infra minimal per slice.
+
+## What's built
+
+1. **Deterministic pipeline** — PDF → extraction (text-layer + OCR) → parsing → canonical `Invoice` → validation → Postgres.
+2. **Tool-calling investigation agent** — OpenAI function-calling loop against 4 read-only tools and mock ERP data (suppliers, purchase orders).
+3. **Decision routing + minimal demo UI** — policy-driven `auto_posted`/`pending_review`/`returned_to_vendor`, single-page frontend with a live-feeling trace reveal.
+4. **Automated evaluation suite** — 10 fixed cases spanning the disposition-policy boundary, safety-asymmetric grading.
+5. **Observability + guardrail hardening** — token/latency metrics, an explicit tool permission registry, distinct max-turns/timeout visibility.
+6. **Human-in-the-loop write actions** — `post_invoice`/`return_to_vendor` as permission-gated WRITE tools, executable only by a human, full audit trail.
+
+## Real bugs found & fixed
+
+Not hidden — this is what happened while actually exercising the system, not just writing it.
+
+- **`UniqueConstraint` contradiction.** A DB-level unique constraint on `(vendor_name, invoice_number)` silently blocked the documented "persist duplicates, flag them" design. Never caught because the Postgres integration tests always skipped until Docker was installed mid-project. Fixed by dropping the constraint.
+- **Test fixture wiping the dev database.** An integration test fixture's `Base.metadata.create_all`/`drop_all` ran against the same persistent Postgres instance used for manual testing, silently deleting real data. Fixed by removing schema management from tests entirely — that's Alembic's job.
+- **PO-number guessing.** The agent would guess PO numbers not present in the invoice's raw text — including, once, reusing a real PO number from a *different* invoice and getting a spurious match. Fixed with two layers: a prompt/schema instruction, and a deterministic tool-level check rejecting any `po_number` argument that isn't a literal substring of the raw extracted text.
+- **Missing concern-tag vocabulary** (`SUPPLIER_BLOCKED`, `DETERMINISTIC_VALIDATION_FAILED`). The model had no tag for "supplier found but blocked" or "pre-existing deterministic validation issue," so it reached for the nearest wrong one (`UNKNOWN_SUPPLIER`, `PO_AMOUNT_MISMATCH`) instead. Fixed by adding the missing tags and tightening the existing ones' definitions to an explicit tag → tool-result mapping.
+
+## Eval results
+
+`evals/` runs 10 fixed invoices through the real pipeline → agent → decision stack — one case per edge of the documented disposition policy (clean approve, unknown/blocked supplier, PO mismatch, duplicate, missing PO reference, cancelled/closed PO, borderline variance on both sides of the tolerance threshold).
+
+Grading is **safety-asymmetric**, not strict pass/fail:
+
+| Grade | Meaning |
+|---|---|
+| `PASS` | Exact match with the expected recommendation |
+| `SOFT-FAIL` | Model was *more cautious* than expected — safe, just imprecise |
+| `FAIL` | Model was *more permissive* than expected — the dangerous direction (auto-approving something that should've been caught) |
+
+Two accuracy numbers are reported: **strict accuracy** and **safe-outcome rate** (`PASS` + `SOFT-FAIL`) — the second is arguably the one that matters for a deployment gate.
+
+Latest run (`gpt-4o-mini`):
+
+```
+Strict accuracy:   10/10 (100.0%)
+Safe-outcome rate: 10/10 (100.0%)
+Avg tool calls:    4.3
+Avg tokens:        5500.5 (prompt: 5321.8, completion: 178.7)
 ```
 
-## Prerequisites
+```bash
+poetry run evaluate-agent   # console report + JSON artifact under evals/results/
+```
 
-- Python 3.11
-- [Poetry](https://python-poetry.org/) 2.x
-- Docker (for local Postgres via `docker-compose`)
-- For OCR fallback: `brew install tesseract poppler`
+## How to run locally
 
-## Setup
+**Prerequisites**: Python 3.11, [Poetry](https://python-poetry.org/) 2.x, Docker, an OpenAI API key. For OCR: `brew install tesseract poppler`.
 
 ```bash
 poetry install
-cp .env.example .env
-docker compose up -d
+cp .env.example .env          # then fill in OPENAI_API_KEY
+
+docker compose up -d           # Postgres
 poetry run alembic upgrade head
-```
+poetry run seed-mock-erp       # seeds suppliers + purchase orders
 
-## Run
-
-```bash
 poetry run uvicorn invoice_processing.main:app --reload
 ```
 
-Or process a single PDF from the command line without the API:
+Open **http://localhost:8000/ui/** for the demo page, or use the API directly (`POST /invoices`, `POST /invoices/{id}/investigate`, `POST /invoices/{id}/decisions/{decision_id}/execute`, ...).
+
+Other entry points:
 
 ```bash
-poetry run process-invoice path/to/invoice.pdf
+poetry run process-invoice path/to/invoice.pdf   # process one PDF via the CLI, no API
+poetry run evaluate-agent                          # run the eval suite
+poetry run pytest                                    # 79 tests (unit + integration)
 ```
 
-## Test
+Integration tests that need Postgres or a live OpenAI call skip automatically if the DB isn't reachable or `OPENAI_API_KEY` isn't set.
 
-```bash
-poetry run pytest
-```
+## Roadmap
+
+- **Kafka / event backbone** — decouple investigation from the synchronous upload request; enable async processing at a throughput beyond one FastAPI request cycle.
+- **Multi-agent split** — separate the investigation agent from a distinct approval/routing agent, so write-capable roles are structurally isolated, not just permission-flagged within one agent.
+- **AWS deployment** — containerize, move Postgres to RDS, S3 for source PDFs, real secrets management in place of `.env`.
+- **Real ERP integration** — replace `erp_mock/` with a live supplier/PO source; the read-only tool interface was designed to make this a data-layer swap, not a rewrite.
+- **SAP BTP mapping** — evaluate this architecture's agent/tool/decision layers against SAP's Business Technology Platform integration and workflow services for an enterprise deployment target.
