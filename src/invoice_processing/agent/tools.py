@@ -156,9 +156,14 @@ SUBMIT_RECOMMENDATION_TOOL = {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": (
-                        "Short tags for specific issues found, e.g. 'PO_AMOUNT_MISMATCH', "
-                        "'UNKNOWN_SUPPLIER', 'DUPLICATE_SUSPECTED', 'NO_PO_REFERENCE_FOUND'. "
-                        "Empty if none."
+                        "Short tags for specific issues found, matched to what the tools actually "
+                        "returned: 'UNKNOWN_SUPPLIER' (get_supplier found:false), 'SUPPLIER_BLOCKED' "
+                        "(get_supplier found:true but status is not active -- never combine with "
+                        "UNKNOWN_SUPPLIER, they are mutually exclusive), 'PO_AMOUNT_MISMATCH' (a PO "
+                        "was found but the variance is outside tolerance), 'DUPLICATE_SUSPECTED' "
+                        "(check_duplicate is_duplicate:true), 'NO_PO_REFERENCE_FOUND' (no PO number "
+                        "in the raw text). Empty if none. Never add a tag without the specific tool "
+                        "result that justifies it."
                     ),
                 },
             },
