@@ -28,21 +28,28 @@ its own. Only include a concern tag when the specific tool result that justifies
 actually present in this conversation -- never add a tag "to be safe" or because it seems \
 plausible.
 
-Use these concern tags, matched exactly to what the tools returned: UNKNOWN_SUPPLIER means \
-get_supplier returned found:false (the vendor is not in supplier master data at all). \
-SUPPLIER_BLOCKED means get_supplier returned found:true but with a non-active status \
+Use these concern tags, matched exactly to what the tools returned or to the invoice's \
+existing_validation_issues (given to you in your context, from deterministic checks that \
+already ran before you started) -- never invent a tag beyond this list: UNKNOWN_SUPPLIER \
+means get_supplier returned found:false (the vendor is not in supplier master data at \
+all). SUPPLIER_BLOCKED means get_supplier returned found:true but with a non-active status \
 (blocked or inactive) -- this is a DIFFERENT finding from UNKNOWN_SUPPLIER, they can never \
 both be true for the same invoice, so never tag both. DUPLICATE_SUSPECTED means \
-check_duplicate returned is_duplicate:true. PO_AMOUNT_MISMATCH means a PO was found but \
-calculate_variance returned within_tolerance:false. NO_PO_REFERENCE_FOUND means the raw \
-text had no PO reference to check.
+check_duplicate returned is_duplicate:true. PO_AMOUNT_MISMATCH means you actually called \
+get_purchase_order, found a real PO, and calculate_variance returned within_tolerance:false \
+against it -- never use this tag for a total/subtotal mismatch that has nothing to do with \
+a PO. DETERMINISTIC_VALIDATION_FAILED means the invoice's existing_validation_issues list \
+is non-empty -- use this to relay a pre-existing deterministic finding (e.g. a total/ \
+subtotal arithmetic mismatch that was already caught before you started), not \
+PO_AMOUNT_MISMATCH. NO_PO_REFERENCE_FOUND means the raw text had no PO reference to check.
 
 When you are done investigating, call submit_recommendation exactly once with one of:
 - auto_approve: the supplier is active and known, a PO was found and the amount is within \
-tolerance, and no duplicate was found.
+tolerance, no duplicate was found, and existing_validation_issues is empty.
 - return_to_vendor: a clear-cut vendor-side problem -- a confirmed duplicate submission, or \
 a PO that is explicitly closed or cancelled.
 - human_review: anything ambiguous -- an unknown supplier, a known but blocked supplier, no \
 explicit PO reference in the text, a variance outside tolerance without a clear explanation, \
-or any other uncertainty. When in doubt, choose human_review rather than auto_approve.
+a non-empty existing_validation_issues list, or any other uncertainty. When in doubt, \
+choose human_review rather than auto_approve.
 """

@@ -157,13 +157,19 @@ SUBMIT_RECOMMENDATION_TOOL = {
                     "items": {"type": "string"},
                     "description": (
                         "Short tags for specific issues found, matched to what the tools actually "
-                        "returned: 'UNKNOWN_SUPPLIER' (get_supplier found:false), 'SUPPLIER_BLOCKED' "
+                        "returned or to the invoice's existing_validation_issues -- never invented: "
+                        "'UNKNOWN_SUPPLIER' (get_supplier found:false), 'SUPPLIER_BLOCKED' "
                         "(get_supplier found:true but status is not active -- never combine with "
-                        "UNKNOWN_SUPPLIER, they are mutually exclusive), 'PO_AMOUNT_MISMATCH' (a PO "
-                        "was found but the variance is outside tolerance), 'DUPLICATE_SUSPECTED' "
-                        "(check_duplicate is_duplicate:true), 'NO_PO_REFERENCE_FOUND' (no PO number "
-                        "in the raw text). Empty if none. Never add a tag without the specific tool "
-                        "result that justifies it."
+                        "UNKNOWN_SUPPLIER, they are mutually exclusive), 'PO_AMOUNT_MISMATCH' (you "
+                        "actually called get_purchase_order, found a real PO, and calculate_variance "
+                        "returned within_tolerance:false against it -- never use this for a total/"
+                        "subtotal mismatch that has nothing to do with a PO), "
+                        "'DETERMINISTIC_VALIDATION_FAILED' (the invoice's existing_validation_issues "
+                        "list is non-empty -- use this to relay a pre-existing deterministic finding, "
+                        "e.g. a total/subtotal arithmetic mismatch, instead of PO_AMOUNT_MISMATCH), "
+                        "'DUPLICATE_SUSPECTED' (check_duplicate is_duplicate:true), "
+                        "'NO_PO_REFERENCE_FOUND' (no PO number in the raw text). Empty if none. Never "
+                        "add a tag without the specific evidence that justifies it."
                     ),
                 },
             },
