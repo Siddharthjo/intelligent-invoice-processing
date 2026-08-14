@@ -3,12 +3,12 @@ from invoice_processing.decision.policy import decide
 from invoice_processing.decision.result import DecisionStatus
 
 
-def test_auto_approve_maps_to_auto_posted():
-    assert decide(Recommendation.AUTO_APPROVE) == DecisionStatus.AUTO_POSTED
+def test_auto_approve_maps_to_posted():
+    assert decide(Recommendation.AUTO_APPROVE) == DecisionStatus.POSTED
 
 
-def test_human_review_maps_to_pending_review():
-    assert decide(Recommendation.HUMAN_REVIEW) == DecisionStatus.PENDING_REVIEW
+def test_human_review_maps_to_exception_workflow():
+    assert decide(Recommendation.HUMAN_REVIEW) == DecisionStatus.EXCEPTION_WORKFLOW
 
 
 def test_return_to_vendor_maps_to_returned_to_vendor():

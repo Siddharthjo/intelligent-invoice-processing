@@ -9,6 +9,7 @@ from invoice_processing.domain.enums import InvoiceStatus
 class Party(BaseModel):
     name: str
     tax_id: str | None = None
+    country: str | None = None
     address: str | None = None
     email: str | None = None
 
@@ -24,6 +25,8 @@ class Invoice(BaseModel):
     invoice_number: str
     vendor: Party
     bill_to: Party | None = None
+    po_number: str | None = None
+    company_code: str | None = None
 
     issue_date: date
     due_date: date | None = None

@@ -28,7 +28,10 @@ def main() -> None:
     finally:
         session.close()
 
-    print(f"Saved invoice {result.invoice_id} (status={result.invoice.status.value})")
+    print(
+        f"Saved invoice {result.invoice_id} "
+        f"(status={result.invoice.status.value}, decision_status={result.decision_status.value})"
+    )
     if result.validation_result.issues:
         print("Validation issues:")
         for issue in result.validation_result.issues:

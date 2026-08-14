@@ -18,7 +18,7 @@ from invoice_processing.config import get_settings
 from invoice_processing.decision.apply import apply_decision
 from invoice_processing.decision.execute import (
     DecisionNotFoundError,
-    DecisionNotPendingReviewError,
+    DecisionNotInExceptionWorkflowError,
     execute_decision,
 )
 from invoice_processing.extraction.base import ExtractionError
@@ -104,7 +104,7 @@ async def execute(
         result = execute_decision(invoice_id, decision_id, body.action, body.reason, session)
     except DecisionNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except DecisionNotPendingReviewError as exc:
+    except DecisionNotInExceptionWorkflowError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
     return DecisionExecutionOut.from_result(result)

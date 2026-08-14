@@ -31,3 +31,29 @@ def test_return_to_vendor_with_no_po_reference_is_left_alone():
     )
     assert recommendation == Recommendation.RETURN_TO_VENDOR
     assert reasoning == "Duplicate."
+
+
+def test_auto_approve_with_supplier_blocked_is_overridden_to_human_review():
+    recommendation, reasoning = _apply_policy_overrides(
+        Recommendation.AUTO_APPROVE, "Looks fine.", ["SUPPLIER_BLOCKED"]
+    )
+    assert recommendation == Recommendation.HUMAN_REVIEW
+    assert "Overridden" in reasoning
+    assert "Looks fine." in reasoning
+
+
+def test_return_to_vendor_with_supplier_blocked_is_overridden_to_human_review():
+    recommendation, reasoning = _apply_policy_overrides(
+        Recommendation.RETURN_TO_VENDOR, "Send it back.", ["SUPPLIER_BLOCKED"]
+    )
+    assert recommendation == Recommendation.HUMAN_REVIEW
+    assert "Overridden" in reasoning
+    assert "Send it back." in reasoning
+
+
+def test_human_review_with_supplier_blocked_is_left_alone():
+    recommendation, reasoning = _apply_policy_overrides(
+        Recommendation.HUMAN_REVIEW, "Needs a look.", ["SUPPLIER_BLOCKED"]
+    )
+    assert recommendation == Recommendation.HUMAN_REVIEW
+    assert reasoning == "Needs a look."

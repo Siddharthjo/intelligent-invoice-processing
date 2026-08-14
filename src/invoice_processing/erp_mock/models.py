@@ -15,6 +15,9 @@ class SupplierRecord(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(unique=True)
     tax_id: Mapped[str | None]
+    country: Mapped[str | None]
+    default_tax_rate: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
+    bank_reference: Mapped[str | None]
     status: Mapped[str]
     notes: Mapped[str | None] = mapped_column(Text)
 
@@ -28,6 +31,8 @@ class PurchaseOrderRecord(Base):
     po_number: Mapped[str] = mapped_column(unique=True)
     supplier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("suppliers.id", ondelete="CASCADE"))
     vendor_name: Mapped[str]
+    company_code: Mapped[str | None]
+    po_type: Mapped[str]
     total_amount: Mapped[Decimal] = mapped_column(MONEY)
     currency: Mapped[str] = mapped_column(Text)
     status: Mapped[str]

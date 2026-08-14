@@ -15,7 +15,7 @@ flowchart TD
     subgraph D1[" Deterministic "]
         B["Extraction<br/>text-layer (pdfplumber) + OCR fallback (Tesseract)"]
         C["Parsing<br/>regex/heuristics to canonical domain.Invoice"]
-        D["Validation<br/>arithmetic, dates, currency, duplicate check"]
+        D["Validation<br/>V1-V9 deterministic pipeline (vendor, tax, bank, currency, arithmetic...)"]
         E[("Postgres<br/>invoices, line_items, validation_issues")]
     end
 
@@ -35,8 +35,8 @@ flowchart TD
     A --> B --> C --> D --> E --> F
     F <--> G
     F -->|recommendation + trace| P
-    P -->|auto_posted / returned_to_vendor| Z[Resolved]
-    P -->|pending_review| HA --> Z
+    P -->|posted / returned_to_vendor| Z[Resolved]
+    P -->|exception_workflow| HA --> Z
 ```
 
 `Extraction` is labeled Deterministic on the primary text-layer path; the OCR fallback is AI-assisted (a fixed-output ML model, not a reasoning step) but still not agentic — it never makes a judgment call. Every arrow into Postgres is append-only where it represents a decision: `agent_investigations`, `invoice_decisions`, and `invoice_actions` are three separate, ever-growing audit tables, not one row that gets overwritten.
@@ -55,7 +55,7 @@ flowchart TD
 
 1. **Deterministic pipeline** — PDF → extraction (text-layer + OCR) → parsing → canonical `Invoice` → validation → Postgres.
 2. **Tool-calling investigation agent** — OpenAI function-calling loop against 4 read-only tools and mock ERP data (suppliers, purchase orders).
-3. **Decision routing + minimal demo UI** — policy-driven `auto_posted`/`pending_review`/`returned_to_vendor`, single-page frontend with a live-feeling trace reveal.
+3. **Decision routing + minimal demo UI** — a full `received → validated → pending_approval → exception_workflow → posted / rejected / returned_to_vendor` lifecycle, policy-driven and append-only audited, single-page frontend with a live-feeling trace reveal.
 4. **Automated evaluation suite** — 10 fixed cases spanning the disposition-policy boundary, safety-asymmetric grading.
 5. **Observability + guardrail hardening** — token/latency metrics, an explicit tool permission registry, distinct max-turns/timeout visibility.
 6. **Human-in-the-loop write actions** — `post_invoice`/`return_to_vendor` as permission-gated WRITE tools, executable only by a human, full audit trail.
@@ -118,7 +118,7 @@ Other entry points:
 ```bash
 poetry run process-invoice path/to/invoice.pdf   # process one PDF via the CLI, no API
 poetry run evaluate-agent                          # run the eval suite
-poetry run pytest                                    # 79 tests (unit + integration)
+poetry run pytest                                    # 101 tests (unit + integration)
 ```
 
 Integration tests that need Postgres or a live OpenAI call skip automatically if the DB isn't reachable or `OPENAI_API_KEY` isn't set.

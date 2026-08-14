@@ -15,7 +15,7 @@ _ACTION_TOOL_NAME = {
 }
 
 _RESULTING_STATUS = {
-    ActionType.POST: DecisionStatus.AUTO_POSTED,
+    ActionType.POST: DecisionStatus.POSTED,
     ActionType.RETURN: DecisionStatus.RETURNED_TO_VENDOR,
 }
 
@@ -24,8 +24,8 @@ class DecisionNotFoundError(Exception):
     """Raised when decision_id doesn't exist, or doesn't belong to the given invoice."""
 
 
-class DecisionNotPendingReviewError(Exception):
-    """Raised when the invoice's current decision_status isn't pending_review."""
+class DecisionNotInExceptionWorkflowError(Exception):
+    """Raised when the invoice's current decision_status isn't exception_workflow."""
 
 
 def execute_decision(
@@ -42,10 +42,10 @@ def execute_decision(
         raise DecisionNotFoundError(f"No decision '{decision_id}' found for invoice '{invoice_id}'.")
 
     stored = repository.get(invoice_id)
-    if stored is None or stored.decision_status != DecisionStatus.PENDING_REVIEW.value:
+    if stored is None or stored.decision_status != DecisionStatus.EXCEPTION_WORKFLOW.value:
         current = stored.decision_status if stored else None
-        raise DecisionNotPendingReviewError(
-            f"Invoice '{invoice_id}' is not pending review (current decision_status: {current!r})."
+        raise DecisionNotInExceptionWorkflowError(
+            f"Invoice '{invoice_id}' is not in exception_workflow (current decision_status: {current!r})."
         )
 
     context = ToolContext(session=session, invoice_id=invoice_id, raw_text="")

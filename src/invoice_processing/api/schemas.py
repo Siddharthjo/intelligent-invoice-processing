@@ -10,7 +10,7 @@ from invoice_processing.decision.result import ActionType, DecisionResult, Decis
 from invoice_processing.domain.enums import InvoiceStatus
 from invoice_processing.domain.invoice import Invoice
 from invoice_processing.persistence.orm_models import AgentInvestigationRecord, InvoiceDecisionRecord
-from invoice_processing.persistence.repository import StoredInvoice
+from invoice_processing.persistence.repository import StatusHistoryEntry, StoredInvoice
 from invoice_processing.pipeline.process_invoice import PipelineResult
 from invoice_processing.validation.result import Severity, ValidationIssue
 
@@ -23,9 +23,16 @@ class LineItemOut(BaseModel):
 
 
 class ValidationIssueOut(BaseModel):
+    step: str
     rule_code: str
     severity: Severity
     message: str
+
+
+class StatusHistoryEntryOut(BaseModel):
+    status: DecisionStatus
+    reason: str | None
+    created_at: datetime
 
 
 class InvoiceOut(BaseModel):
@@ -33,6 +40,8 @@ class InvoiceOut(BaseModel):
     invoice_number: str
     vendor_name: str
     bill_to_name: str | None
+    po_number: str | None
+    company_code: str | None
     issue_date: date
     due_date: date | None
     currency: str
@@ -45,6 +54,7 @@ class InvoiceOut(BaseModel):
     decision_status: DecisionStatus | None
     source_filename: str | None
     validation_issues: list[ValidationIssueOut]
+    status_history: list[StatusHistoryEntryOut]
 
     @classmethod
     def build(
@@ -55,12 +65,15 @@ class InvoiceOut(BaseModel):
         source_filename: str | None,
         validation_issues: list[ValidationIssue],
         decision_status: str | None = None,
+        status_history: list[StatusHistoryEntry] | None = None,
     ) -> "InvoiceOut":
         return cls(
             id=id,
             invoice_number=invoice.invoice_number,
             vendor_name=invoice.vendor.name,
             bill_to_name=invoice.bill_to.name if invoice.bill_to else None,
+            po_number=invoice.po_number,
+            company_code=invoice.company_code,
             issue_date=invoice.issue_date,
             due_date=invoice.due_date,
             currency=invoice.currency,
@@ -73,6 +86,14 @@ class InvoiceOut(BaseModel):
             decision_status=DecisionStatus(decision_status) if decision_status else None,
             source_filename=source_filename,
             validation_issues=[ValidationIssueOut(**issue.model_dump()) for issue in validation_issues],
+            status_history=[
+                StatusHistoryEntryOut(
+                    status=DecisionStatus(entry.status),
+                    reason=entry.reason,
+                    created_at=entry.created_at,
+                )
+                for entry in (status_history or [])
+            ],
         )
 
     @classmethod
@@ -82,6 +103,8 @@ class InvoiceOut(BaseModel):
             invoice=result.invoice,
             source_filename=source_filename,
             validation_issues=result.validation_result.issues,
+            decision_status=result.decision_status,
+            status_history=result.status_history,
         )
 
     @classmethod
@@ -92,6 +115,7 @@ class InvoiceOut(BaseModel):
             source_filename=stored.source_filename,
             validation_issues=stored.validation_issues,
             decision_status=stored.decision_status,
+            status_history=stored.status_history,
         )
 
 

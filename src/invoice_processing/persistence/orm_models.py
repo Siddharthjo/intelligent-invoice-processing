@@ -19,7 +19,10 @@ class InvoiceRecord(Base):
     invoice_number: Mapped[str]
     vendor_name: Mapped[str]
     vendor_tax_id: Mapped[str | None]
+    vendor_country: Mapped[str | None]
     bill_to_name: Mapped[str | None]
+    po_number: Mapped[str | None]
+    company_code: Mapped[str | None]
 
     issue_date: Mapped[date]
     due_date: Mapped[date | None]
@@ -56,6 +59,11 @@ class InvoiceRecord(Base):
     actions: Mapped[list["InvoiceActionRecord"]] = relationship(
         back_populates="invoice", cascade="all, delete-orphan", order_by="InvoiceActionRecord.created_at"
     )
+    status_history: Mapped[list["InvoiceStatusHistoryRecord"]] = relationship(
+        back_populates="invoice",
+        cascade="all, delete-orphan",
+        order_by="InvoiceStatusHistoryRecord.created_at",
+    )
 
 
 class LineItemRecord(Base):
@@ -79,6 +87,7 @@ class ValidationIssueRecord(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id", ondelete="CASCADE"))
 
+    step: Mapped[str]
     rule_code: Mapped[str]
     severity: Mapped[str]
     message: Mapped[str] = mapped_column(Text)
@@ -145,6 +154,22 @@ class InvoiceDecisionRecord(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     invoice: Mapped["InvoiceRecord"] = relationship(back_populates="decisions")
+
+
+class InvoiceStatusHistoryRecord(Base):
+    """Append-only audit trail of every decision_status an invoice has passed through."""
+
+    __tablename__ = "invoice_status_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("invoices.id", ondelete="CASCADE"))
+
+    status: Mapped[str]
+    reason: Mapped[str | None] = mapped_column(Text)
+
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    invoice: Mapped["InvoiceRecord"] = relationship(back_populates="status_history")
 
 
 class InvoiceActionRecord(Base):

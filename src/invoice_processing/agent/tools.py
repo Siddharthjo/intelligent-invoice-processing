@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from invoice_processing.config import get_settings
 from invoice_processing.decision.result import DecisionStatus
+from invoice_processing.erp_mock.enums import PurchaseOrderType
 from invoice_processing.erp_mock.repository import PurchaseOrderRepository, SupplierRepository
 from invoice_processing.persistence.repository import InvoiceRepository
 
@@ -119,16 +120,25 @@ CALCULATE_VARIANCE_TOOL = {
     "function": {
         "name": "calculate_variance",
         "description": (
-            "Compute absolute and percentage variance between the invoice total and a reference "
-            "amount (typically a PO total), and whether it's within standard matching tolerance."
+            "Look up a purchase order and compute the variance between it and the invoice total, "
+            "using the matching tolerance for that PO's type (goods/services/indirect all differ). "
+            "Only call this with a po_number that appears verbatim in the invoice's raw extracted "
+            "text -- never a guess, inference, or a PO number seen on a different invoice. If the "
+            "raw text has no explicit PO reference, do not call this tool at all."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "invoice_amount": {"type": "number", "description": "The invoice's total_amount."},
-                "po_amount": {"type": "number", "description": "The purchase order's total_amount."},
+                "po_number": {
+                    "type": "string",
+                    "description": (
+                        "A PO number copied verbatim from the invoice's raw extracted text, e.g. "
+                        "'PO-1001'. Never a guessed or inferred value."
+                    ),
+                },
             },
-            "required": ["invoice_amount", "po_amount"],
+            "required": ["invoice_amount", "po_number"],
             "additionalProperties": False,
         },
     },
@@ -237,16 +247,25 @@ def _handle_get_supplier(arguments: dict, context: ToolContext) -> dict:
     }
 
 
+def _is_po_number_grounded(po_number: str, raw_text: str) -> bool:
+    """Shared grounding check for every tool that resolves a PO: the number must appear
+    verbatim in the invoice's own raw extracted text, never a guessed or relayed value."""
+    return po_number.lower() in raw_text.lower()
+
+
+_UNGROUNDED_PO_RESULT = {
+    "found": False,
+    "rejected_reason": (
+        "po_number does not appear verbatim in this invoice's raw extracted text; "
+        "lookup was not performed."
+    ),
+}
+
+
 def _handle_get_purchase_order(arguments: dict, context: ToolContext) -> dict:
     po_number = arguments["po_number"]
-    if po_number.lower() not in context.raw_text.lower():
-        return {
-            "found": False,
-            "rejected_reason": (
-                "po_number does not appear verbatim in this invoice's raw extracted text; "
-                "lookup was not performed."
-            ),
-        }
+    if not _is_po_number_grounded(po_number, context.raw_text):
+        return _UNGROUNDED_PO_RESULT
 
     po = PurchaseOrderRepository(context.session).get_by_number(po_number)
     if po is None:
@@ -259,6 +278,7 @@ def _handle_get_purchase_order(arguments: dict, context: ToolContext) -> dict:
             "total_amount": str(po.total_amount),
             "currency": po.currency,
             "status": po.status,
+            "po_type": po.po_type,
         },
     }
 
@@ -275,16 +295,40 @@ def _handle_check_duplicate(arguments: dict, context: ToolContext) -> dict:
     }
 
 
+def _tolerance_for_po_type(po_type: str) -> Decimal:
+    settings = get_settings()
+    by_type = {
+        PurchaseOrderType.GOODS: settings.agent_po_variance_tolerance_goods_pct,
+        PurchaseOrderType.SERVICES: settings.agent_po_variance_tolerance_services_pct,
+        PurchaseOrderType.INDIRECT: settings.agent_po_variance_tolerance_indirect_pct,
+    }
+    # Falls back to the tightest (goods) tolerance for an unrecognized type, rather than
+    # silently picking a looser one.
+    return by_type.get(po_type, settings.agent_po_variance_tolerance_goods_pct)
+
+
 def _handle_calculate_variance(arguments: dict, context: ToolContext) -> dict:
-    tolerance_pct = get_settings().agent_po_variance_tolerance_pct
+    po_number = arguments["po_number"]
+    if not _is_po_number_grounded(po_number, context.raw_text):
+        return _UNGROUNDED_PO_RESULT
+
+    po = PurchaseOrderRepository(context.session).get_by_number(po_number)
+    if po is None:
+        return {"found": False}
+
+    tolerance_pct = _tolerance_for_po_type(po.po_type)
     invoice_amount = Decimal(str(arguments["invoice_amount"]))
-    po_amount = Decimal(str(arguments["po_amount"]))
+    po_amount = po.total_amount
 
     absolute_variance = invoice_amount - po_amount
     percentage_variance = abs(absolute_variance) / po_amount if po_amount != 0 else None
     within_tolerance = percentage_variance is not None and percentage_variance <= tolerance_pct
 
     return {
+        "found": True,
+        "po_number": po.po_number,
+        "po_type": po.po_type,
+        "po_amount": str(po_amount),
         "absolute_variance": str(absolute_variance),
         "percentage_variance": str(percentage_variance) if percentage_variance is not None else None,
         "within_tolerance": within_tolerance,
@@ -294,7 +338,7 @@ def _handle_calculate_variance(arguments: dict, context: ToolContext) -> dict:
 
 def _handle_post_invoice(arguments: dict, context: ToolContext) -> dict:
     invoice_id = uuid.UUID(arguments["invoice_id"])
-    InvoiceRepository(context.session).update_decision_status(invoice_id, DecisionStatus.AUTO_POSTED)
+    InvoiceRepository(context.session).update_decision_status(invoice_id, DecisionStatus.POSTED)
     return {"posted": True, "invoice_id": str(invoice_id)}
 
 

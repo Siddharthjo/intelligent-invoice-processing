@@ -43,7 +43,7 @@ def test_investigate_endpoint_returns_trace_and_decision(
 
     assert body["invoice_id"] == invoice_id
     assert body["recommendation"] in {"auto_approve", "human_review", "return_to_vendor"}
-    assert body["decision_status"] in {"auto_posted", "pending_review", "returned_to_vendor"}
+    assert body["decision_status"] in {"posted", "exception_workflow", "returned_to_vendor"}
     assert isinstance(body["steps"], list)
     assert all(step["tool"] != "submit_recommendation" for step in body["steps"])
 

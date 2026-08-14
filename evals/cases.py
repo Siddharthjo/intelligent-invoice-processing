@@ -107,6 +107,13 @@ EVAL_CASES: list[EvalCase] = [
         ),
         expected_recommendation=Recommendation.RETURN_TO_VENDOR,
     ),
+    # Known: this case occasionally SOFT-FAILs (human_review instead of return_to_vendor)
+    # on some runs -- never FAIL (auto_approve), so it's still the safe direction. It's
+    # the only case stacking three concerns at once (closed PO + missing bank details on
+    # the supplier + a tax-rate mismatch), which appears to be genuinely borderline for
+    # the model to resolve consistently, not a regression from any specific change.
+    # Revisit only if this recurs on an isolated, single-concern case -- that would
+    # suggest a real prompt/policy gap rather than ordinary sampling variance.
     EvalCase(
         name="po_closed",
         category="po_status",

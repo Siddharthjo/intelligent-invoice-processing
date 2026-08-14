@@ -40,17 +40,6 @@ def test_allowed_schemas_exclude_tools_outside_the_permission_set():
     assert "get_supplier" not in names
 
 
-def test_dispatch_permits_a_registered_tool_within_the_allowed_set():
-    dispatch = dispatch_tool(
-        "calculate_variance",
-        {"invoice_amount": 100, "po_amount": 100},
-        _CONTEXT,
-        frozenset({ToolPermission.READ}),
-    )
-    assert dispatch.permitted is True
-    assert dispatch.result["within_tolerance"] is True
-
-
 def test_dispatch_rejects_a_registered_tool_outside_the_allowed_set():
     dispatch = dispatch_tool(
         "get_supplier",

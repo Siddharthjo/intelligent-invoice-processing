@@ -28,6 +28,7 @@ def _stored_invoice() -> StoredInvoice:
         source_filename="test.pdf",
         validation_issues=[],
         decision_status=None,
+        status_history=[],
     )
 
 
@@ -116,13 +117,15 @@ def test_hits_max_turns_and_falls_back_to_human_review(monkeypatch):
     monkeypatch.setattr("invoice_processing.agent.runner.get_settings", lambda: fake_settings)
 
     stored = _stored_invoice()
-    variance_call = _FakeToolCall(
-        "call_variance", "calculate_variance", json.dumps({"invoice_amount": 100, "po_amount": 100})
-    )
+    # A bogus/unregistered tool name is enough to drive this test -- it exercises the
+    # max-turns-exhaustion fallback, not any specific real tool's business logic, and
+    # dispatch_tool() rejects it without needing a DB session while still letting the
+    # loop continue (rejection doesn't terminate it).
+    bogus_call = _FakeToolCall("call_bogus", "some_unregistered_tool", json.dumps({}))
     client = _FakeClient(
         [
-            _FakeResponse(_FakeMessage(tool_calls=[variance_call])),
-            _FakeResponse(_FakeMessage(tool_calls=[variance_call])),
+            _FakeResponse(_FakeMessage(tool_calls=[bogus_call])),
+            _FakeResponse(_FakeMessage(tool_calls=[bogus_call])),
         ]
     )
 

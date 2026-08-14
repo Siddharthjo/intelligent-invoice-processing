@@ -21,6 +21,7 @@ from invoice_processing.persistence.repository import StoredInvoice
 logger = logging.getLogger(__name__)
 
 _NO_PO_REFERENCE_CONCERN = "NO_PO_REFERENCE_FOUND"
+_SUPPLIER_BLOCKED_CONCERN = "SUPPLIER_BLOCKED"
 DEFAULT_ALLOWED_PERMISSIONS: frozenset[ToolPermission] = frozenset({ToolPermission.READ})
 
 
@@ -33,6 +34,18 @@ def _apply_policy_overrides(
             f"{reasoning_summary} [Overridden to human_review: policy requires human review "
             "whenever no PO reference was found in the invoice text, regardless of the "
             "model's own recommendation.]"
+        )
+        return Recommendation.HUMAN_REVIEW, overridden_reasoning
+    if _SUPPLIER_BLOCKED_CONCERN in concerns and recommendation in (
+        Recommendation.AUTO_APPROVE,
+        Recommendation.RETURN_TO_VENDOR,
+    ):
+        overridden_reasoning = (
+            f"{reasoning_summary} [Overridden to human_review: policy requires human review "
+            "whenever the supplier is blocked, regardless of the model's own recommendation -- "
+            "a block is typically a compliance/legal hold, not a vendor-side invoice defect, "
+            "so it shouldn't be resolved to auto_approve or return_to_vendor without a human "
+            "look.]"
         )
         return Recommendation.HUMAN_REVIEW, overridden_reasoning
     return recommendation, reasoning_summary
@@ -59,7 +72,12 @@ def _build_user_message(stored: StoredInvoice, raw_text: str) -> str:
             for item in invoice.line_items
         ],
         "existing_validation_issues": [
-            {"rule_code": issue.rule_code, "severity": issue.severity, "message": issue.message}
+            {
+                "step": issue.step,
+                "rule_code": issue.rule_code,
+                "severity": issue.severity,
+                "message": issue.message,
+            }
             for issue in stored.validation_issues
         ],
         "raw_extracted_text": raw_text,

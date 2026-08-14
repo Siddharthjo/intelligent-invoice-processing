@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from invoice_processing.devtools.pdf_builder import build_invoice_pdf
+from invoice_processing.erp_mock.seed import seed_mock_erp_data
 from invoice_processing.main import app
 
 
@@ -14,10 +15,11 @@ def client(db_session: Session) -> TestClient:
     return TestClient(app)
 
 
-def test_upload_and_retrieve_invoice(client: TestClient, tmp_path: Path):
+def test_upload_and_retrieve_invoice(client: TestClient, db_session: Session, tmp_path: Path):
+    seed_mock_erp_data(db_session)
     invoice_number = f"INV-{uuid.uuid4().hex[:8]}"
     pdf_path = tmp_path / "invoice.pdf"
-    build_invoice_pdf(pdf_path, invoice_number=invoice_number)
+    build_invoice_pdf(pdf_path, invoice_number=invoice_number, vendor_name="Northwind Traders Ltd.")
 
     with open(pdf_path, "rb") as f:
         response = client.post("/invoices", files={"file": ("invoice.pdf", f, "application/pdf")})

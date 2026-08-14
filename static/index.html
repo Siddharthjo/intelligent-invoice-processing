@@ -64,9 +64,10 @@
     font-size: 0.78rem;
     font-weight: 600;
   }
-  .badge.valid, .badge.auto_posted { color: var(--green); background: var(--green-bg); }
-  .badge.invalid, .badge.pending_review { color: var(--yellow); background: var(--yellow-bg); }
-  .badge.returned_to_vendor { color: var(--red); background: var(--red-bg); }
+  .badge.valid, .badge.posted { color: var(--green); background: var(--green-bg); }
+  .badge.invalid, .badge.pending_approval, .badge.exception_workflow { color: var(--yellow); background: var(--yellow-bg); }
+  .badge.returned_to_vendor, .badge.rejected { color: var(--red); background: var(--red-bg); }
+  .badge.received, .badge.validated { color: var(--muted); background: var(--border); }
   #termination-warning {
     display: inline-block;
     color: var(--red);
@@ -137,6 +138,8 @@
       <tbody></tbody>
     </table>
     <div id="validation-issues"></div>
+    <h2>Status history</h2>
+    <div id="status-history"></div>
   </section>
 
   <section class="panel hidden" id="investigate-panel">
@@ -199,6 +202,7 @@
       <dt>Issue date</dt><dd>${invoice.issue_date}</dd>
       <dt>Total</dt><dd>${invoice.currency} ${invoice.total_amount}</dd>
       <dt>Validation status</dt><dd>${badge(invoice.status)}</dd>
+      <dt>Lifecycle status</dt><dd>${invoice.decision_status ? badge(invoice.decision_status) : "&mdash;"}</dd>
     `;
 
     const tbody = document.querySelector("#line-items-table tbody");
@@ -211,7 +215,16 @@
       issuesEl.innerHTML = `<p class="muted">No validation issues.</p>`;
     } else {
       issuesEl.innerHTML = `<ul class="issues">${invoice.validation_issues.map(
-        (issue) => `<li><strong>${issue.rule_code}</strong> (${issue.severity}): ${issue.message}</li>`
+        (issue) => `<li><span class="muted">[${issue.step}]</span> <strong>${issue.rule_code}</strong> (${issue.severity}): ${issue.message}</li>`
+      ).join("")}</ul>`;
+    }
+
+    const historyEl = el("status-history");
+    if (!invoice.status_history || invoice.status_history.length === 0) {
+      historyEl.innerHTML = `<p class="muted">No status history yet.</p>`;
+    } else {
+      historyEl.innerHTML = `<ul class="issues">${invoice.status_history.map(
+        (entry) => `<li>${badge(entry.status)} <span class="muted">${entry.created_at}</span>${entry.reason ? ` &mdash; ${entry.reason}` : ""}</li>`
       ).join("")}</ul>`;
     }
 
@@ -296,7 +309,7 @@
     el("approve-post-button").disabled = false;
     el("return-to-vendor-button").disabled = false;
 
-    el("human-actions").classList.toggle("hidden", investigation.decision_status !== "pending_review");
+    el("human-actions").classList.toggle("hidden", investigation.decision_status !== "exception_workflow");
 
     el("decision-panel").classList.remove("hidden");
   }

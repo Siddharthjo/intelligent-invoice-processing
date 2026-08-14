@@ -13,8 +13,8 @@ def client(db_session: Session) -> TestClient:
     return TestClient(app)
 
 
-def test_execute_post_via_api(client: TestClient, make_pending_review_invoice, tmp_path: Path):
-    invoice_id, decision_id = make_pending_review_invoice(tmp_path)
+def test_execute_post_via_api(client: TestClient, make_exception_workflow_invoice, tmp_path: Path):
+    invoice_id, decision_id = make_exception_workflow_invoice(tmp_path)
 
     response = client.post(
         f"/invoices/{invoice_id}/decisions/{decision_id}/execute", json={"action": "post"}
@@ -22,12 +22,12 @@ def test_execute_post_via_api(client: TestClient, make_pending_review_invoice, t
 
     assert response.status_code == 200
     body = response.json()
-    assert body["resulting_decision_status"] == "auto_posted"
+    assert body["resulting_decision_status"] == "posted"
     assert body["action"] == "post"
 
 
-def test_execute_return_requires_reason(client: TestClient, make_pending_review_invoice, tmp_path: Path):
-    invoice_id, decision_id = make_pending_review_invoice(tmp_path)
+def test_execute_return_requires_reason(client: TestClient, make_exception_workflow_invoice, tmp_path: Path):
+    invoice_id, decision_id = make_exception_workflow_invoice(tmp_path)
 
     response = client.post(
         f"/invoices/{invoice_id}/decisions/{decision_id}/execute", json={"action": "return"}
@@ -36,8 +36,10 @@ def test_execute_return_requires_reason(client: TestClient, make_pending_review_
     assert response.status_code == 422
 
 
-def test_execute_return_with_reason_via_api(client: TestClient, make_pending_review_invoice, tmp_path: Path):
-    invoice_id, decision_id = make_pending_review_invoice(tmp_path)
+def test_execute_return_with_reason_via_api(
+    client: TestClient, make_exception_workflow_invoice, tmp_path: Path
+):
+    invoice_id, decision_id = make_exception_workflow_invoice(tmp_path)
 
     response = client.post(
         f"/invoices/{invoice_id}/decisions/{decision_id}/execute",
@@ -50,8 +52,8 @@ def test_execute_return_with_reason_via_api(client: TestClient, make_pending_rev
     assert body["reason"] == "amount does not match PO"
 
 
-def test_execute_unknown_decision_404s(client: TestClient, make_pending_review_invoice, tmp_path: Path):
-    invoice_id, _ = make_pending_review_invoice(tmp_path)
+def test_execute_unknown_decision_404s(client: TestClient, make_exception_workflow_invoice, tmp_path: Path):
+    invoice_id, _ = make_exception_workflow_invoice(tmp_path)
 
     response = client.post(
         f"/invoices/{invoice_id}/decisions/{uuid.uuid4()}/execute", json={"action": "post"}
@@ -59,8 +61,8 @@ def test_execute_unknown_decision_404s(client: TestClient, make_pending_review_i
     assert response.status_code == 404
 
 
-def test_execute_already_resolved_409s(client: TestClient, make_pending_review_invoice, tmp_path: Path):
-    invoice_id, decision_id = make_pending_review_invoice(tmp_path)
+def test_execute_already_resolved_409s(client: TestClient, make_exception_workflow_invoice, tmp_path: Path):
+    invoice_id, decision_id = make_exception_workflow_invoice(tmp_path)
     client.post(f"/invoices/{invoice_id}/decisions/{decision_id}/execute", json={"action": "post"})
 
     response = client.post(

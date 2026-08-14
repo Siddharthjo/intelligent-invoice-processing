@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -10,11 +11,19 @@ from invoice_processing.persistence.orm_models import (
     AgentInvestigationRecord,
     InvoiceDecisionRecord,
     InvoiceRecord,
+    InvoiceStatusHistoryRecord,
     LineItemRecord,
     RawExtractionRecord,
     ValidationIssueRecord,
 )
 from invoice_processing.validation.result import Severity, ValidationIssue, ValidationResult
+
+
+@dataclass
+class StatusHistoryEntry:
+    status: str
+    reason: str | None
+    created_at: datetime
 
 
 @dataclass
@@ -24,6 +33,7 @@ class StoredInvoice:
     source_filename: str | None
     validation_issues: list[ValidationIssue]
     decision_status: str | None
+    status_history: list[StatusHistoryEntry]
 
 
 class InvoiceRepository:
@@ -62,7 +72,10 @@ class InvoiceRepository:
             invoice_number=invoice.invoice_number,
             vendor_name=invoice.vendor.name,
             vendor_tax_id=invoice.vendor.tax_id,
+            vendor_country=invoice.vendor.country,
             bill_to_name=invoice.bill_to.name if invoice.bill_to else None,
+            po_number=invoice.po_number,
+            company_code=invoice.company_code,
             issue_date=invoice.issue_date,
             due_date=invoice.due_date,
             currency=invoice.currency,
@@ -84,6 +97,7 @@ class InvoiceRepository:
             ],
             validation_issues=[
                 ValidationIssueRecord(
+                    step=issue.step,
                     rule_code=issue.rule_code,
                     severity=issue.severity,
                     message=issue.message,
@@ -117,10 +131,15 @@ class InvoiceRepository:
         stmt = select(RawExtractionRecord.raw_text).where(RawExtractionRecord.invoice_id == invoice_id)
         return self._session.execute(stmt).scalars().first()
 
-    def update_decision_status(self, invoice_id: uuid.UUID, decision_status: str) -> None:
+    def update_decision_status(
+        self, invoice_id: uuid.UUID, decision_status: str, *, reason: str | None = None
+    ) -> None:
         record = self._session.get(InvoiceRecord, invoice_id)
         if record is not None:
             record.decision_status = decision_status
+        self._session.add(
+            InvoiceStatusHistoryRecord(invoice_id=invoice_id, status=decision_status, reason=reason)
+        )
 
     def get_latest_investigation_and_decision(
         self, invoice_id: uuid.UUID
@@ -137,8 +156,10 @@ class InvoiceRepository:
 def _to_domain(record: InvoiceRecord) -> Invoice:
     return Invoice(
         invoice_number=record.invoice_number,
-        vendor=Party(name=record.vendor_name, tax_id=record.vendor_tax_id),
+        vendor=Party(name=record.vendor_name, tax_id=record.vendor_tax_id, country=record.vendor_country),
         bill_to=Party(name=record.bill_to_name) if record.bill_to_name else None,
+        po_number=record.po_number,
+        company_code=record.company_code,
         issue_date=record.issue_date,
         due_date=record.due_date,
         currency=record.currency,
@@ -166,9 +187,16 @@ def _to_stored(record: InvoiceRecord) -> StoredInvoice:
         source_filename=record.source_filename,
         validation_issues=[
             ValidationIssue(
-                rule_code=issue.rule_code, severity=Severity(issue.severity), message=issue.message
+                step=issue.step,
+                rule_code=issue.rule_code,
+                severity=Severity(issue.severity),
+                message=issue.message,
             )
             for issue in record.validation_issues
         ],
         decision_status=record.decision_status,
+        status_history=[
+            StatusHistoryEntry(status=entry.status, reason=entry.reason, created_at=entry.created_at)
+            for entry in record.status_history
+        ],
     )

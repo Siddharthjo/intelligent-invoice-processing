@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from invoice_processing.domain.invoice import Invoice, LineItem, Party
 from invoice_processing.validation import rules
+from invoice_processing.validation.context import ValidationContext
 from invoice_processing.validation.result import Severity
 
 
@@ -30,59 +31,73 @@ def _invoice(**overrides) -> Invoice:
     return Invoice(**base)
 
 
-def test_valid_invoice_has_no_error_issues():
-    issues = rules.run_rules(_invoice())
-    assert not any(issue.severity == Severity.ERROR for issue in issues)
+def _ctx(**overrides) -> ValidationContext:
+    return ValidationContext(invoice=_invoice(**overrides), session=None)
 
 
-def test_rule_total_amount_positive_flags_zero():
-    issues = rules.rule_total_amount_positive(_invoice(total_amount=Decimal("0")))
-    assert issues[0].rule_code == "NON_POSITIVE_TOTAL"
+# --- PRE tier (pure, no DB) ---------------------------------------------------------
 
 
-def test_rule_currency_valid_flags_unknown_code():
-    issues = rules.rule_currency_valid(_invoice(currency="ZZZ"))
-    assert issues[0].rule_code == "INVALID_CURRENCY_CODE"
-
-
-def test_rule_due_date_before_issue_date():
-    issues = rules.rule_due_date_after_issue_date(_invoice(due_date=date(2025, 12, 1)))
-    assert issues[0].rule_code == "DUE_DATE_BEFORE_ISSUE_DATE"
-
-
-def test_rule_issue_date_in_future():
-    issues = rules.rule_issue_date_not_in_future(_invoice(issue_date=date.today() + timedelta(days=30)))
-    assert issues[0].rule_code == "ISSUE_DATE_IN_FUTURE"
-
-
-def test_rule_line_items_present_warns_when_empty():
-    issues = rules.rule_line_items_present(_invoice(line_items=[]))
+def test_pre_line_items_present_warns_when_empty():
+    issues = rules._check_line_items_present(_ctx(line_items=[]))
+    assert issues[0].step == "PRE"
     assert issues[0].rule_code == "NO_LINE_ITEMS_EXTRACTED"
     assert issues[0].severity == Severity.WARNING
 
 
-def test_rule_line_item_math_mismatch():
+def test_pre_due_date_before_issue_date():
+    issues = rules._check_due_date_after_issue_date(_ctx(due_date=date(2025, 12, 1)))
+    assert issues[0].step == "PRE"
+    assert issues[0].rule_code == "DUE_DATE_BEFORE_ISSUE_DATE"
+
+
+def test_pre_issue_date_in_future():
+    ctx = _ctx(issue_date=date.today() + timedelta(days=30))
+    issues = rules._check_issue_date_not_in_future(ctx)
+    assert issues[0].step == "PRE"
+    assert issues[0].rule_code == "ISSUE_DATE_IN_FUTURE"
+
+
+# --- V9 arithmetic/total (pure, no DB) -----------------------------------------------
+
+
+def test_v9_flags_non_positive_total():
+    issues = rules._check_v9_arithmetic_total(_ctx(total_amount=Decimal("0")))
+    codes = {i.rule_code for i in issues}
+    assert "NON_POSITIVE_TOTAL" in codes
+    assert all(i.step == "V9" for i in issues)
+
+
+def test_v9_flags_line_item_math_mismatch():
     mismatched = LineItem(
         description="Widget",
         quantity=Decimal("2"),
         unit_price=Decimal("10.00"),
         extended_price=Decimal("25.00"),
     )
-    issues = rules.rule_line_item_math(_invoice(line_items=[mismatched]))
-    assert issues[0].rule_code == "LINE_ITEM_MATH_MISMATCH"
+    issues = rules._check_v9_arithmetic_total(_ctx(line_items=[mismatched]))
+    assert any(i.rule_code == "LINE_ITEM_MATH_MISMATCH" for i in issues)
 
 
-def test_rule_subtotal_mismatch():
-    issues = rules.rule_subtotal_matches_line_items(_invoice(subtotal=Decimal("999.00")))
-    assert issues[0].rule_code == "SUBTOTAL_MISMATCH"
+def test_v9_flags_subtotal_mismatch():
+    issues = rules._check_v9_arithmetic_total(_ctx(subtotal=Decimal("999.00")))
+    assert any(i.rule_code == "SUBTOTAL_MISMATCH" for i in issues)
 
 
-def test_rule_total_mismatch():
-    issues = rules.rule_total_matches_components(_invoice(total_amount=Decimal("999.00")))
-    assert issues[0].rule_code == "TOTAL_MISMATCH"
+def test_v9_flags_total_mismatch():
+    issues = rules._check_v9_arithmetic_total(_ctx(total_amount=Decimal("999.00")))
+    assert any(i.rule_code == "TOTAL_MISMATCH" for i in issues)
+
+
+def test_v9_clean_invoice_has_no_issues():
+    assert rules._check_v9_arithmetic_total(_ctx()) == []
+
+
+# --- V5 duplicate issue builder (pure) ------------------------------------------------
 
 
 def test_duplicate_invoice_issue():
     issue = rules.duplicate_invoice_issue(vendor_name="Acme", invoice_number="INV-1")
+    assert issue.step == "V5"
     assert issue.rule_code == "DUPLICATE_INVOICE"
     assert issue.severity == Severity.ERROR

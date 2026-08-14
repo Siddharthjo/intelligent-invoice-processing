@@ -14,6 +14,8 @@ def build_invoice_pdf(
     issue_date: str = "2026-01-15",
     due_date: str = "2026-02-14",
     po_number: str | None = None,
+    vendor_tax_id: str | None = None,
+    vendor_country: str | None = None,
     line_items: tuple[tuple[str, str, str, str], ...] = (
         ("Widget A", "2", "10.00", "20.00"),
         ("Widget B", "1", "30.00", "30.00"),
@@ -33,6 +35,10 @@ def build_invoice_pdf(
     ]
     if po_number:
         header_lines.append(f"PO Number: {po_number}")
+    if vendor_tax_id:
+        header_lines.append(f"VAT Number: {vendor_tax_id}")
+    if vendor_country:
+        header_lines.append(f"Country: {vendor_country}")
     table_data = [["Description", "Qty", "Unit Price", "Amount"], *line_items]
     footer_lines = [
         f"Subtotal: ${subtotal}",

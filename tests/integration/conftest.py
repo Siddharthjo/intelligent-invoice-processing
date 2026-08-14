@@ -36,9 +36,9 @@ def db_session() -> Generator[Session, None, None]:
 
 
 @pytest.fixture
-def make_pending_review_invoice(db_session: Session):
-    """Factory fixture: seeds an invoice with a pending_review decision, without a real
-    agent call, so tests exercising decision execution don't need OPENAI_API_KEY."""
+def make_exception_workflow_invoice(db_session: Session):
+    """Factory fixture: seeds an invoice with an exception_workflow decision, without a
+    real agent call, so tests exercising decision execution don't need OPENAI_API_KEY."""
 
     def _make(tmp_path: Path) -> tuple[uuid.UUID, uuid.UUID]:
         pdf_path = tmp_path / f"invoice_{uuid.uuid4().hex[:8]}.pdf"

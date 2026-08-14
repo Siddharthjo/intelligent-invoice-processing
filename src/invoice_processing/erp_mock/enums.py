@@ -11,3 +11,9 @@ class PurchaseOrderStatus(StrEnum):
     OPEN = "open"
     CLOSED = "closed"
     CANCELLED = "cancelled"
+
+
+class PurchaseOrderType(StrEnum):
+    GOODS = "goods"
+    SERVICES = "services"
+    INDIRECT = "indirect"

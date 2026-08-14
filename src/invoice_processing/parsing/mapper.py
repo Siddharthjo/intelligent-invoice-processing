@@ -31,7 +31,12 @@ def map_to_invoice(document: ExtractedDocument) -> Invoice:
 
     return Invoice(
         invoice_number=invoice_number,
-        vendor=Party(name=vendor_name),
+        vendor=Party(
+            name=vendor_name,
+            tax_id=fields.parse_vendor_tax_id(text),
+            country=fields.parse_vendor_country(text),
+        ),
+        po_number=fields.parse_po_number(text),
         issue_date=issue_date,
         due_date=fields.parse_date(text, "due_date"),
         currency=fields.parse_currency(text),

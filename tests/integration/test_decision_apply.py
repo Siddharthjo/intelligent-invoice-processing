@@ -42,11 +42,11 @@ def test_apply_decision_persists_row_and_updates_invoice(db_session: Session, tm
     investigation_id = _make_investigation(db_session, result.invoice_id, Recommendation.AUTO_APPROVE)
     decision = apply_decision(result.invoice_id, investigation_id, Recommendation.AUTO_APPROVE, db_session)
 
-    assert decision.decision_status == DecisionStatus.AUTO_POSTED
+    assert decision.decision_status == DecisionStatus.POSTED
     assert decision.agent_investigation_id == investigation_id
 
     stored = InvoiceRepository(db_session).get(result.invoice_id)
-    assert stored.decision_status == "auto_posted"
+    assert stored.decision_status == "posted"
 
 
 def test_apply_decision_is_append_only_and_invoice_reflects_the_latest(db_session: Session, tmp_path: Path):
@@ -61,10 +61,10 @@ def test_apply_decision_is_append_only_and_invoice_reflects_the_latest(db_sessio
     apply_decision(result.invoice_id, investigation_2, Recommendation.AUTO_APPROVE, db_session)
 
     stored = InvoiceRepository(db_session).get(result.invoice_id)
-    assert stored.decision_status == "auto_posted"
+    assert stored.decision_status == "posted"
 
     latest = InvoiceRepository(db_session).get_latest_investigation_and_decision(result.invoice_id)
     assert latest is not None
     investigation, decision = latest
     assert investigation.id == investigation_2
-    assert decision.decision == "auto_posted"
+    assert decision.decision == "posted"

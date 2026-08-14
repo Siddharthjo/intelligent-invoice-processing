@@ -18,8 +18,14 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     agent_model: str = "gpt-4o-mini"
     agent_max_tool_turns: int = 8
-    agent_po_variance_tolerance_pct: Decimal = Decimal("0.02")
     agent_call_timeout_seconds: float = 30.0
+
+    # Three-way match tolerance varies by PO type -- goods quantities are precise/countable
+    # (tightest tolerance), services are often estimated (loosest), indirect in between.
+    # Illustrative mock values, not derived from any real policy.
+    agent_po_variance_tolerance_goods_pct: Decimal = Decimal("0.02")
+    agent_po_variance_tolerance_services_pct: Decimal = Decimal("0.05")
+    agent_po_variance_tolerance_indirect_pct: Decimal = Decimal("0.08")
 
 
 @lru_cache
