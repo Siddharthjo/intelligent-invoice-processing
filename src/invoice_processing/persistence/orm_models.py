@@ -117,6 +117,8 @@ class AgentInvestigationRecord(Base):
     tool_call_count: Mapped[int]
     prompt_tokens: Mapped[int | None]
     completion_tokens: Mapped[int | None]
+    termination_reason: Mapped[str]
+    latency_ms: Mapped[int]
 
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

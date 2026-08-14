@@ -3,7 +3,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from invoice_processing.agent.result import Recommendation
+from invoice_processing.agent.result import Recommendation, TerminationReason
 from invoice_processing.decision.apply import apply_decision
 from invoice_processing.decision.result import DecisionStatus
 from invoice_processing.devtools.pdf_builder import build_invoice_pdf
@@ -26,6 +26,8 @@ def _make_investigation(session: Session, invoice_id: uuid.UUID, recommendation:
             tool_call_count=0,
             prompt_tokens=None,
             completion_tokens=None,
+            termination_reason=TerminationReason.COMPLETED,
+            latency_ms=0,
         )
     )
     session.commit()

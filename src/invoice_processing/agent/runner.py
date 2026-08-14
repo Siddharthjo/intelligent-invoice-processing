@@ -1,21 +1,27 @@
 import json
+import logging
+import time
 
-from openai import OpenAI
+from openai import APITimeoutError, OpenAI
 from sqlalchemy.orm import Session
 
 from invoice_processing.agent.client import get_openai_client
 from invoice_processing.agent.prompts import SYSTEM_PROMPT
-from invoice_processing.agent.result import AgentInvestigationResult, Recommendation
+from invoice_processing.agent.result import AgentInvestigationResult, Recommendation, TerminationReason
 from invoice_processing.agent.tools import (
     SUBMIT_RECOMMENDATION_TOOL_NAME,
-    TOOL_HANDLERS,
-    TOOL_SCHEMAS,
     ToolContext,
+    ToolPermission,
+    dispatch_tool,
+    get_allowed_tool_schemas,
 )
 from invoice_processing.config import get_settings
 from invoice_processing.persistence.repository import StoredInvoice
 
+logger = logging.getLogger(__name__)
+
 _NO_PO_REFERENCE_CONCERN = "NO_PO_REFERENCE_FOUND"
+DEFAULT_ALLOWED_PERMISSIONS: frozenset[ToolPermission] = frozenset({ToolPermission.READ})
 
 
 def _apply_policy_overrides(
@@ -61,30 +67,44 @@ def _build_user_message(stored: StoredInvoice, raw_text: str) -> str:
     return json.dumps(payload, indent=2)
 
 
-def _fallback_to_human_review(
-    messages: list[dict], tool_call_count: int, model: str, prompt_tokens: int, completion_tokens: int
+def _fallback_result(
+    *,
+    termination_reason: TerminationReason,
+    reasoning_summary: str,
+    concern: str,
+    messages: list[dict],
+    tool_call_count: int,
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    latency_ms: int,
 ) -> AgentInvestigationResult:
     return AgentInvestigationResult(
         recommendation=Recommendation.HUMAN_REVIEW,
-        reasoning_summary=(
-            "Agent did not call submit_recommendation before the investigation loop ended; "
-            "defaulting to human review."
-        ),
-        concerns=["AGENT_DID_NOT_SUBMIT_RECOMMENDATION"],
+        reasoning_summary=reasoning_summary,
+        concerns=[concern],
         trace=messages,
         tool_call_count=tool_call_count,
         model=model,
         prompt_tokens=prompt_tokens or None,
         completion_tokens=completion_tokens or None,
+        termination_reason=termination_reason,
+        latency_ms=latency_ms,
     )
 
 
 def run_investigation(
-    stored: StoredInvoice, raw_text: str, session: Session, *, client: OpenAI | None = None
+    stored: StoredInvoice,
+    raw_text: str,
+    session: Session,
+    *,
+    client: OpenAI | None = None,
+    allowed_permissions: frozenset[ToolPermission] = DEFAULT_ALLOWED_PERMISSIONS,
 ) -> AgentInvestigationResult:
     settings = get_settings()
     client = client or get_openai_client()
     context = ToolContext(session=session, invoice_id=stored.id, raw_text=raw_text)
+    tool_schemas = get_allowed_tool_schemas(allowed_permissions)
 
     messages: list[dict] = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -94,14 +114,44 @@ def run_investigation(
     tool_call_count = 0
     prompt_tokens = 0
     completion_tokens = 0
+    started_at = time.monotonic()
 
-    for _ in range(settings.agent_max_tool_turns):
-        response = client.chat.completions.create(
-            model=settings.agent_model,
-            messages=messages,
-            tools=TOOL_SCHEMAS,
-            tool_choice="auto",
-        )
+    def elapsed_ms() -> int:
+        return int((time.monotonic() - started_at) * 1000)
+
+    for turn in range(settings.agent_max_tool_turns):
+        try:
+            response = client.chat.completions.create(
+                model=settings.agent_model,
+                messages=messages,
+                tools=tool_schemas,
+                tool_choice="auto",
+                timeout=settings.agent_call_timeout_seconds,
+            )
+        except APITimeoutError as exc:
+            logger.warning(
+                "Investigation for invoice %s timed out on turn %d after %dms (limit %ss): %s",
+                stored.id,
+                turn + 1,
+                elapsed_ms(),
+                settings.agent_call_timeout_seconds,
+                exc,
+            )
+            return _fallback_result(
+                termination_reason=TerminationReason.TIMEOUT,
+                reasoning_summary=(
+                    f"OpenAI call timed out after {settings.agent_call_timeout_seconds}s on turn "
+                    f"{turn + 1}; defaulting to human review."
+                ),
+                concern="AGENT_CALL_TIMEOUT",
+                messages=messages,
+                tool_call_count=tool_call_count,
+                model=settings.agent_model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                latency_ms=elapsed_ms(),
+            )
+
         if response.usage is not None:
             prompt_tokens += response.usage.prompt_tokens
             completion_tokens += response.usage.completion_tokens
@@ -121,6 +171,15 @@ def run_investigation(
                 recommendation, reasoning_summary = _apply_policy_overrides(
                     Recommendation(arguments["recommendation"]), arguments["reasoning"], concerns
                 )
+                latency_ms = elapsed_ms()
+                logger.info(
+                    "Investigation for invoice %s completed: recommendation=%s tool_calls=%d "
+                    "latency_ms=%d",
+                    stored.id,
+                    recommendation.value,
+                    tool_call_count,
+                    latency_ms,
+                )
                 return AgentInvestigationResult(
                     recommendation=recommendation,
                     reasoning_summary=reasoning_summary,
@@ -130,13 +189,39 @@ def run_investigation(
                     model=settings.agent_model,
                     prompt_tokens=prompt_tokens or None,
                     completion_tokens=completion_tokens or None,
+                    termination_reason=TerminationReason.COMPLETED,
+                    latency_ms=latency_ms,
                 )
 
-            result = TOOL_HANDLERS[tool_call.function.name](arguments, context)
+            dispatch = dispatch_tool(tool_call.function.name, arguments, context, allowed_permissions)
+            if not dispatch.permitted:
+                logger.warning(
+                    "Investigation for invoice %s attempted a disallowed tool call: '%s'",
+                    stored.id,
+                    tool_call.function.name,
+                )
             messages.append(
-                {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps(result)}
+                {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps(dispatch.result)}
             )
 
-    return _fallback_to_human_review(
-        messages, tool_call_count, settings.agent_model, prompt_tokens, completion_tokens
+    latency_ms = elapsed_ms()
+    logger.warning(
+        "Investigation for invoice %s hit the %d-turn cap without a recommendation (latency_ms=%d)",
+        stored.id,
+        settings.agent_max_tool_turns,
+        latency_ms,
+    )
+    return _fallback_result(
+        termination_reason=TerminationReason.MAX_TURNS_EXCEEDED,
+        reasoning_summary=(
+            f"Agent did not call submit_recommendation within {settings.agent_max_tool_turns} turns; "
+            "defaulting to human review."
+        ),
+        concern="AGENT_MAX_TURNS_EXCEEDED",
+        messages=messages,
+        tool_call_count=tool_call_count,
+        model=settings.agent_model,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        latency_ms=latency_ms,
     )

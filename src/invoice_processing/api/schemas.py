@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from invoice_processing.agent.result import AgentInvestigationResult, Recommendation
+from invoice_processing.agent.result import AgentInvestigationResult, Recommendation, TerminationReason
 from invoice_processing.agent.trace_view import to_trace_steps
 from invoice_processing.decision.result import DecisionResult, DecisionStatus
 from invoice_processing.domain.enums import InvoiceStatus
@@ -134,6 +134,11 @@ class InvestigationOut(BaseModel):
     reasoning_summary: str
     concerns: list[str]
     tool_call_count: int
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    total_tokens: int | None
+    latency_ms: int
+    termination_reason: TerminationReason
     steps: list[TraceStepOut]
     decision_status: DecisionStatus
     decision_reasoning: str
@@ -151,6 +156,11 @@ class InvestigationOut(BaseModel):
             reasoning_summary=investigation.reasoning_summary,
             concerns=investigation.concerns,
             tool_call_count=investigation.tool_call_count,
+            prompt_tokens=investigation.prompt_tokens,
+            completion_tokens=investigation.completion_tokens,
+            total_tokens=_total_tokens(investigation.prompt_tokens, investigation.completion_tokens),
+            latency_ms=investigation.latency_ms,
+            termination_reason=investigation.termination_reason,
             steps=[TraceStepOut(**step) for step in to_trace_steps(investigation.trace)],
             decision_status=decision.decision_status,
             decision_reasoning=decision.decision_reasoning,
@@ -169,8 +179,19 @@ class InvestigationOut(BaseModel):
             reasoning_summary=investigation.reasoning_summary,
             concerns=investigation.concerns,
             tool_call_count=investigation.tool_call_count,
+            prompt_tokens=investigation.prompt_tokens,
+            completion_tokens=investigation.completion_tokens,
+            total_tokens=_total_tokens(investigation.prompt_tokens, investigation.completion_tokens),
+            latency_ms=investigation.latency_ms,
+            termination_reason=TerminationReason(investigation.termination_reason),
             steps=[TraceStepOut(**step) for step in to_trace_steps(investigation.trace)],
             decision_status=DecisionStatus(decision.decision),
             decision_reasoning=decision.decision_reasoning,
             policy_version=decision.policy_version,
         )
+
+
+def _total_tokens(prompt_tokens: int | None, completion_tokens: int | None) -> int | None:
+    if prompt_tokens is None or completion_tokens is None:
+        return None
+    return prompt_tokens + completion_tokens

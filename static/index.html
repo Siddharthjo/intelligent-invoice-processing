@@ -65,6 +65,15 @@
   .badge.valid, .badge.auto_posted { color: var(--green); background: var(--green-bg); }
   .badge.invalid, .badge.pending_review { color: var(--yellow); background: var(--yellow-bg); }
   .badge.returned_to_vendor { color: var(--red); background: var(--red-bg); }
+  #termination-warning {
+    display: inline-block;
+    color: var(--red);
+    background: var(--red-bg);
+    border-radius: 6px;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    margin: 0.5rem 0;
+  }
   ul.issues { margin: 0.5rem 0 0; padding-left: 1.2rem; font-size: 0.85rem; }
   ul.issues li { margin-bottom: 0.25rem; }
   .step-card {
@@ -137,6 +146,7 @@
     <h2>Final decision</h2>
     <div class="decision-panel">
       <div id="decision-badge"></div>
+      <div id="termination-warning" class="hidden"></div>
       <p class="reasoning" id="decision-reasoning"></p>
       <div id="decision-concerns" class="concerns"></div>
       <p class="muted" id="decision-meta"></p>
@@ -218,18 +228,34 @@
     el("trace-steps").appendChild(card);
   }
 
+  const TERMINATION_LABELS = {
+    max_turns_exceeded: "⚠ Hit the tool-call turn cap before reaching a recommendation",
+    timeout: "⚠ An OpenAI call timed out during this investigation",
+  };
+
   function renderDecision(investigation) {
     el("decision-badge").innerHTML =
       `${badge(investigation.decision_status)} &nbsp; <span class="muted">(agent recommended: ${investigation.recommendation})</span>`;
     el("decision-reasoning").textContent = investigation.reasoning_summary;
+
+    const warningEl = el("termination-warning");
+    const warningText = TERMINATION_LABELS[investigation.termination_reason];
+    if (warningText) {
+      warningEl.textContent = warningText;
+      warningEl.classList.remove("hidden");
+    } else {
+      warningEl.classList.add("hidden");
+    }
 
     const concernsEl = el("decision-concerns");
     concernsEl.innerHTML = investigation.concerns.length
       ? investigation.concerns.map((c) => `<span class="badge">${c}</span>`).join("")
       : `<span class="muted">No concerns flagged.</span>`;
 
+    const tokens = investigation.total_tokens != null ? `${investigation.total_tokens} tokens` : "token usage unavailable";
     el("decision-meta").textContent =
-      `${investigation.model} · ${investigation.tool_call_count} tool calls · policy ${investigation.policy_version}`;
+      `${investigation.model} · ${investigation.tool_call_count} tool calls · ${tokens} · ` +
+      `${investigation.latency_ms}ms · policy ${investigation.policy_version} · ${investigation.termination_reason}`;
 
     el("decision-panel").classList.remove("hidden");
   }
