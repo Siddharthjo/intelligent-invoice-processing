@@ -25,7 +25,8 @@ dependencies = [
     "google-api-python-client (>=2.198.0,<3.0.0)",
     "google-auth-httplib2 (>=0.4.1,<0.5.0)",
     "google-auth-oauthlib (>=1.4.0,<2.0.0)",
-    "apscheduler (>=3.11.3,<4.0.0)"
+    "apscheduler (>=3.11.3,<4.0.0)",
+    "bcrypt (>=5.0.0,<6.0.0)"
 ]
 
 
@@ -47,6 +48,7 @@ process-invoice = "invoice_processing.cli:main"
 seed-mock-erp = "invoice_processing.erp_mock.seed:main"
 evaluate-agent = "evals.run:main"
 gmail-authorize = "invoice_processing.intake.gmail:authorize_cli"
+seed-demo-users = "invoice_processing.auth.seed:main"
 
 [tool.ruff]
 line-length = 110

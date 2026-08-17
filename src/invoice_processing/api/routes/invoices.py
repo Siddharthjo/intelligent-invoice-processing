@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, status
 
 from invoice_processing.agent.client import AgentNotConfiguredError
 from invoice_processing.agent.investigate import InvoiceNotFoundError, investigate_invoice
-from invoice_processing.api.deps import SessionDep
+from invoice_processing.api.deps import CurrentUser, SessionDep
 from invoice_processing.api.schemas import (
     DecisionExecutionOut,
     ExecuteDecisionRequest,
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 
 @router.post("", response_model=InvoiceOut, status_code=status.HTTP_201_CREATED)
-async def upload_invoice(file: UploadFile, session: SessionDep) -> InvoiceOut:
+async def upload_invoice(file: UploadFile, session: SessionDep, current_user: CurrentUser) -> InvoiceOut:
     if file.content_type != "application/pdf":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Only application/pdf uploads are supported.")
 
@@ -54,7 +54,7 @@ async def upload_invoice(file: UploadFile, session: SessionDep) -> InvoiceOut:
 
 
 @router.get("/{invoice_id}", response_model=InvoiceOut)
-async def get_invoice(invoice_id: UUID, session: SessionDep) -> InvoiceOut:
+async def get_invoice(invoice_id: UUID, session: SessionDep, current_user: CurrentUser) -> InvoiceOut:
     stored = InvoiceRepository(session).get(invoice_id)
     if stored is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No invoice found with id '{invoice_id}'.")
@@ -62,13 +62,15 @@ async def get_invoice(invoice_id: UUID, session: SessionDep) -> InvoiceOut:
 
 
 @router.get("", response_model=list[InvoiceSummaryOut])
-async def list_invoices(session: SessionDep, limit: int = 50, offset: int = 0) -> list[InvoiceSummaryOut]:
+async def list_invoices(
+    session: SessionDep, current_user: CurrentUser, limit: int = 50, offset: int = 0
+) -> list[InvoiceSummaryOut]:
     stored = InvoiceRepository(session).list(limit=limit, offset=offset)
     return [InvoiceSummaryOut.from_stored(item) for item in stored]
 
 
 @router.post("/{invoice_id}/investigate", response_model=InvestigationOut)
-async def investigate(invoice_id: UUID, session: SessionDep) -> InvestigationOut:
+async def investigate(invoice_id: UUID, session: SessionDep, current_user: CurrentUser) -> InvestigationOut:
     try:
         investigation = investigate_invoice(invoice_id, session)
     except InvoiceNotFoundError as exc:
@@ -81,7 +83,9 @@ async def investigate(invoice_id: UUID, session: SessionDep) -> InvestigationOut
 
 
 @router.get("/{invoice_id}/investigation", response_model=InvestigationOut)
-async def get_latest_investigation(invoice_id: UUID, session: SessionDep) -> InvestigationOut:
+async def get_latest_investigation(
+    invoice_id: UUID, session: SessionDep, current_user: CurrentUser
+) -> InvestigationOut:
     repository = InvoiceRepository(session)
     if repository.get(invoice_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No invoice found with id '{invoice_id}'.")
@@ -98,7 +102,11 @@ async def get_latest_investigation(invoice_id: UUID, session: SessionDep) -> Inv
 
 @router.post("/{invoice_id}/decisions/{decision_id}/execute", response_model=DecisionExecutionOut)
 async def execute(
-    invoice_id: UUID, decision_id: UUID, body: ExecuteDecisionRequest, session: SessionDep
+    invoice_id: UUID,
+    decision_id: UUID,
+    body: ExecuteDecisionRequest,
+    session: SessionDep,
+    current_user: CurrentUser,
 ) -> DecisionExecutionOut:
     try:
         result = execute_decision(invoice_id, decision_id, body.action, body.reason, session)

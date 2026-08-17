@@ -7,7 +7,7 @@ from pydantic import BaseModel, model_validator
 from invoice_processing.agent.result import AgentInvestigationResult, Recommendation, TerminationReason
 from invoice_processing.agent.trace_view import to_trace_steps
 from invoice_processing.decision.result import ActionType, DecisionResult, DecisionStatus, ExecutionResult
-from invoice_processing.domain.enums import IntakeSource, InvoiceStatus
+from invoice_processing.domain.enums import IntakeSource, InvoiceStatus, UserRole
 from invoice_processing.domain.invoice import Invoice
 from invoice_processing.intake.gmail import GmailPollResult
 from invoice_processing.persistence.orm_models import AgentInvestigationRecord, InvoiceDecisionRecord
@@ -282,3 +282,13 @@ class GmailCheckResultOut(BaseModel):
             processed_invoice_ids=result.processed_invoice_ids,
             failed_message_count=len(result.failed_message_ids),
         )
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserOut(BaseModel):
+    username: str
+    role: UserRole

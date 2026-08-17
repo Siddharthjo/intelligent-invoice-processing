@@ -15,3 +15,8 @@ class ExtractionMethod(StrEnum):
 class IntakeSource(StrEnum):
     MANUAL_UPLOAD = "manual_upload"
     GMAIL = "gmail"
+
+
+class UserRole(StrEnum):
+    AP_CLERK = "ap_clerk"
+    MANAGER = "manager"

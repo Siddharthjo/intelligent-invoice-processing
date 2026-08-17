@@ -3,12 +3,15 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from invoice_processing.agent.result import Recommendation, TerminationReason
+from invoice_processing.auth.seed import seed_demo_users
 from invoice_processing.decision.apply import apply_decision
 from invoice_processing.devtools.pdf_builder import build_invoice_pdf
+from invoice_processing.main import app
 from invoice_processing.persistence.db import SessionLocal, engine
 from invoice_processing.persistence.orm_models import AgentInvestigationRecord
 from invoice_processing.pipeline.process_invoice import process_invoice
@@ -33,6 +36,27 @@ def db_session() -> Generator[Session, None, None]:
         yield session
     finally:
         session.close()
+
+
+@pytest.fixture
+def client(db_session: Session) -> TestClient:
+    return TestClient(app)
+
+
+@pytest.fixture
+def clerk_client(client: TestClient, db_session: Session) -> TestClient:
+    seed_demo_users(db_session)
+    response = client.post("/auth/login", json={"username": "clerk", "password": "clerk-demo-pass"})
+    assert response.status_code == 200
+    return client
+
+
+@pytest.fixture
+def manager_client(client: TestClient, db_session: Session) -> TestClient:
+    seed_demo_users(db_session)
+    response = client.post("/auth/login", json={"username": "manager", "password": "manager-demo-pass"})
+    assert response.status_code == 200
+    return client
 
 
 @pytest.fixture

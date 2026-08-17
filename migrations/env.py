@@ -9,6 +9,7 @@ from invoice_processing.config import get_settings
 from invoice_processing.persistence.db import Base
 from invoice_processing.persistence import orm_models  # noqa: F401  (registers models on Base.metadata)
 from invoice_processing.erp_mock import models as erp_mock_models  # noqa: F401
+from invoice_processing.auth import orm_models as auth_orm_models  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

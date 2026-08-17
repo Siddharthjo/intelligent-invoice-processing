@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from invoice_processing.api.routes.gmail import router as gmail_router
 from invoice_processing.api.routes.invoices import router as invoices_router
+from invoice_processing.auth.routes import router as auth_router
 from invoice_processing.config import get_settings
 from invoice_processing.intake.gmail import poll_inbox
 from invoice_processing.persistence.db import SessionLocal
@@ -64,6 +65,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Intelligent Invoice Processing", version="0.1.0", lifespan=lifespan)
+app.include_router(auth_router)
 app.include_router(invoices_router)
 app.include_router(gmail_router)
 app.mount("/ui", NoCacheStaticFiles(directory=STATIC_DIR, html=True), name="ui")

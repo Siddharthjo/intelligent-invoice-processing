@@ -52,7 +52,28 @@
     text-transform: uppercase;
     margin: 0;
   }
-  .header-actions { display: flex; gap: 0.5rem; }
+  .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+  .user-info { font-size: 0.8rem; color: var(--muted); margin-right: 0.5rem; }
+  .user-info .role { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.7rem; }
+
+  #login-view {
+    max-width: 320px; margin: 6rem auto 0; padding: 0 1rem;
+  }
+  #login-view h2 {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted);
+    margin: 0 0 2rem; font-weight: 600; text-align: center;
+  }
+  .login-field { margin-bottom: 1.5rem; }
+  .login-field label {
+    display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.4rem;
+  }
+  .login-field input {
+    width: 100%; border: none; border-bottom: 1.5px solid var(--hairline-strong);
+    background: transparent; font-family: inherit; font-size: 0.95rem; color: var(--ink);
+    padding: 0.4rem 0.1rem; outline: none;
+  }
+  .login-field input:focus { border-bottom-color: var(--accent); }
+  #login-form .btn-primary { width: 100%; margin-top: 0.5rem; }
 
   button { font-family: inherit; cursor: pointer; }
   button:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -214,14 +235,32 @@
 
 <header>
   <h1>Intelligent Invoice Processing</h1>
-  <div class="header-actions">
+  <div class="header-actions hidden" id="header-actions">
+    <span class="user-info mono" id="user-info"></span>
     <button type="button" class="btn-text" id="new-upload-button">+ New upload</button>
     <button type="button" class="btn-text" id="recent-toggle-button">Recent ▸</button>
+    <button type="button" class="btn-text" id="logout-button">Log out</button>
   </div>
 </header>
 
 <main>
-  <div id="upload-view">
+  <div id="login-view" class="hidden">
+    <h2>Log in</h2>
+    <form id="login-form">
+      <div class="login-field">
+        <label for="login-username">Username</label>
+        <input type="text" id="login-username" autocomplete="username" required />
+      </div>
+      <div class="login-field">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" autocomplete="current-password" required />
+      </div>
+      <button type="submit" class="btn-primary" id="login-button">Log in</button>
+      <p class="error-text hidden" id="login-error"></p>
+    </form>
+  </div>
+
+  <div id="upload-view" class="hidden">
     <div id="upload-zone" tabindex="0">
       <p class="upload-hint">Drop a PDF invoice here, or click to browse</p>
       <button type="button" class="btn-primary" id="browse-button">Choose file</button>
@@ -342,9 +381,19 @@
 
   // --- view switching -------------------------------------------------------------------
 
+  function showLoginView() {
+    closeRecentDrawer();
+    el("header-actions").classList.add("hidden");
+    el("upload-view").classList.add("hidden");
+    el("detail-view").classList.add("hidden");
+    el("login-view").classList.remove("hidden");
+  }
+
   function showUploadView() {
     currentInvoiceId = null;
     currentDecisionId = null;
+    el("login-view").classList.add("hidden");
+    el("header-actions").classList.remove("hidden");
     el("detail-view").classList.add("hidden");
     el("upload-view").classList.remove("hidden");
     el("upload-error").classList.add("hidden");
@@ -353,9 +402,65 @@
   }
 
   function showDetailView() {
+    el("login-view").classList.add("hidden");
+    el("header-actions").classList.remove("hidden");
     el("upload-view").classList.add("hidden");
     el("detail-view").classList.remove("hidden");
   }
+
+  function renderUserInfo(user) {
+    el("user-info").innerHTML =
+      `${escapeHtml(user.username)} <span class="role">(${escapeHtml(user.role)})</span>`;
+  }
+
+  async function checkAuthAndInit() {
+    try {
+      const response = await fetch("/auth/me");
+      if (response.ok) {
+        renderUserInfo(await response.json());
+        showUploadView();
+      } else {
+        showLoginView();
+      }
+    } catch (err) {
+      showLoginView();
+    }
+  }
+
+  el("login-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    el("login-error").classList.add("hidden");
+    el("login-button").disabled = true;
+
+    try {
+      const response = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: el("login-username").value.trim(),
+          password: el("login-password").value,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Login failed.");
+
+      renderUserInfo(body);
+      el("login-password").value = "";
+      showUploadView();
+    } catch (err) {
+      el("login-error").textContent = err.message;
+      el("login-error").classList.remove("hidden");
+    } finally {
+      el("login-button").disabled = false;
+    }
+  });
+
+  el("logout-button").addEventListener("click", async () => {
+    await fetch("/auth/logout", { method: "POST" });
+    el("login-username").value = "";
+    el("login-password").value = "";
+    showLoginView();
+  });
 
   function resetInvestigationPanels() {
     el("trace-section").classList.add("hidden");
@@ -734,6 +839,8 @@
     closeRecentDrawer();
     loadInvoiceById(row.dataset.id);
   });
+
+  checkAuthAndInit();
 </script>
 </body>
 </html>

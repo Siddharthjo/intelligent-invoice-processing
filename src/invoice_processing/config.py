@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # regardless of this setting.
     gmail_poll_interval_minutes: int | None = None
 
+    session_ttl_hours: int = 8
+    # False for local http://localhost dev; set true for the Azure deployment (HTTPS).
+    session_cookie_secure: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:
