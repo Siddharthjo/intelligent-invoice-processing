@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ledger React dev harness</title>
+    <!--
+      Dev-only preview harness (not shipped -- production build has no HTML output,
+      it's injected as a script into static/index.html). Points at the backend's
+      shared stylesheet so the two mount points below look right while iterating.
+      Run the FastAPI app on :8000 alongside `npm run dev` for this to pick up styles.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="http://localhost:8000/ui/design-system.css" />
+    <style>
+      body { background: #FAFAF7; margin: 0; font-family: 'Inter', sans-serif; }
+      #login-view { max-width: 320px; margin: 6rem auto 0; padding: 0 1rem; }
+      #analytics-view { max-width: 1180px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
+    </style>
+  </head>
+  <body>
+    <div id="login-view"></div>
+    <hr />
+    <div id="analytics-view"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

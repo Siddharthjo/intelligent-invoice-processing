@@ -14,3 +14,5 @@ htmlcov/
 .DS_Store
 demo_invoices/
 evals/results/
+node_modules/
+static/react/

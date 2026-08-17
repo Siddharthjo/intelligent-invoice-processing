@@ -1,3 +1,10 @@
+FROM node:20-slim AS frontend-build
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -13,6 +20,7 @@ COPY evals ./evals
 COPY static ./static
 COPY migrations ./migrations
 COPY alembic.ini ./alembic.ini
+COPY --from=frontend-build /app/static/react ./static/react
 
 RUN poetry config virtualenvs.create false \
     && poetry install --only main --no-interaction --no-ansi

@@ -1,0 +1,105 @@
+/* Shared "Ledger" design-system primitives.
+   Single source of truth for both the vanilla-JS views in index.html and the
+   React views built from ../frontend (login + analytics) -- edit only here. */
+
+:root {
+  --paper: #FAFAF7;
+  --ink: #1C1B18;
+  --muted: #726C5E;
+  --hairline: #E4E1D8;
+  --hairline-strong: #D6D2C5;
+  --row-hover: #F2F0E9;
+  --accent: #92400E;
+  --accent-hover: #7A3409;
+  --accent-wash: #FBF2E9;
+  --dot-neutral: #A8A398;
+  --dot-attention: #92400E;
+  --dot-good: #2F6844;
+  --dot-bad: #9B3232;
+  --terminal-bg: #1C1B18;
+  --terminal-text: #F5F3EC;
+  --terminal-muted: #8A8677;
+  --terminal-call: #D9A566;
+  --terminal-warn: #C98080;
+}
+
+.mono { font-family: 'IBM Plex Mono', ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+button { font-family: inherit; cursor: pointer; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--accent); color: #fff; border: none; border-radius: 4px;
+  padding: 0.55rem 1.15rem; font-size: 0.85rem; font-weight: 500;
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-secondary {
+  background: transparent; color: var(--ink); border: 1px solid var(--hairline-strong);
+  border-radius: 4px; padding: 0.55rem 1.15rem; font-size: 0.85rem;
+}
+.btn-secondary:hover:not(:disabled) { border-color: var(--muted); }
+.btn-text {
+  background: none; border: none; color: var(--muted);
+  font-size: 0.82rem; padding: 0.4rem 0.5rem;
+}
+.btn-text:hover { color: var(--ink); }
+
+#login-view h2 {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted);
+  margin: 0 0 2rem; font-weight: 600; text-align: center;
+}
+.login-field { margin-bottom: 1.5rem; }
+.login-field label {
+  display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.4rem;
+}
+.login-field input {
+  width: 100%; border: none; border-bottom: 1.5px solid var(--hairline-strong);
+  background: transparent; font-family: inherit; font-size: 0.95rem; color: var(--ink);
+  padding: 0.4rem 0.1rem; outline: none;
+}
+.login-field input:focus { border-bottom-color: var(--accent); }
+#login-form .btn-primary { width: 100%; margin-top: 0.5rem; }
+
+.section { padding: 1.85rem 0; border-bottom: 1px solid var(--hairline); }
+.section:last-child { border-bottom: none; }
+.section-title {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted);
+  margin: 0 0 1.1rem; font-weight: 600;
+}
+
+table.ledger { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 1.5rem; }
+table.ledger th {
+  text-align: left; font-weight: 600; color: var(--muted); font-size: 0.7rem;
+  text-transform: uppercase; letter-spacing: 0.06em; padding: 0 0 0.5rem; border-bottom: 1px solid var(--hairline-strong);
+}
+table.ledger td { padding: 0.5rem 0; border-bottom: 1px solid var(--hairline); }
+table.ledger th.num, table.ledger td.num { text-align: right; }
+
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.5rem; }
+.dot.neutral { background: var(--dot-neutral); }
+.dot.attention { background: var(--dot-attention); }
+.dot.good { background: var(--dot-good); }
+.dot.bad { background: var(--dot-bad); }
+.status-line { display: inline-flex; align-items: center; font-size: 0.88rem; }
+
+.bar-row { display: flex; align-items: center; gap: 0.85rem; padding: 0.55rem 0; border-bottom: 1px solid var(--hairline); font-size: 0.85rem; }
+.bar-row:first-child { padding-top: 0; }
+.bar-label { width: 160px; flex-shrink: 0; }
+.bar-track { flex: 1; background: var(--hairline); height: 9px; border-radius: 2px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; }
+.bar-fill.neutral { background: var(--dot-neutral); }
+.bar-fill.attention { background: var(--dot-attention); }
+.bar-fill.good { background: var(--dot-good); }
+.bar-fill.bad { background: var(--dot-bad); }
+.bar-count { width: 44px; text-align: right; flex-shrink: 0; }
+.cost-note { font-size: 0.78rem; color: var(--muted); margin-top: 1rem; }
+
+.muted { color: var(--muted); font-size: 0.85rem; }
+.error-text { color: var(--dot-bad); font-size: 0.85rem; margin-top: 0.6rem; }
+.spinner {
+  display: inline-block; width: 13px; height: 13px; border: 2px solid var(--hairline-strong);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite;
+  vertical-align: middle; margin-right: 0.5rem;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.hidden { display: none !important; }

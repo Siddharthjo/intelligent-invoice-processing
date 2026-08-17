@@ -8,6 +8,15 @@ A vertical-slice prototype of an enterprise accounts-payable invoice processing 
 
 **[Try it live](https://ca-invproc-demo.whitehill-b7082afb.centralus.azurecontainerapps.io/ui/)** — deployed on Azure Container Apps + PostgreSQL Flexible Server, demo-tier (scale-to-zero), so the first request after a period of idle may take a few seconds to cold-start.
 
+The app is login-gated (role-based access: AP clerk vs. manager). Use one of these fixed demo accounts:
+
+| Username  | Password             | Role       | Can do                                                              |
+|-----------|-----------------------|------------|----------------------------------------------------------------------|
+| `clerk`   | `clerk-demo-pass`     | AP Clerk   | Upload/view invoices, see extraction, validation, and agent trace   |
+| `manager` | `manager-demo-pass`   | Manager    | Everything a clerk can, plus Approve & Post / Return to Vendor, plus the Analytics page |
+
+These are fixed, publicly-known demo credentials for this prototype — not meant to represent real account security.
+
 [`/health`](https://ca-invproc-demo.whitehill-b7082afb.centralus.azurecontainerapps.io/health) · [`/docs`](https://ca-invproc-demo.whitehill-b7082afb.centralus.azurecontainerapps.io/docs)
 
 ## Architecture

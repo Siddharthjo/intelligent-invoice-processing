@@ -6,27 +6,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="design-system.css">
 <style>
-  :root {
-    --paper: #FAFAF7;
-    --ink: #1C1B18;
-    --muted: #726C5E;
-    --hairline: #E4E1D8;
-    --hairline-strong: #D6D2C5;
-    --row-hover: #F2F0E9;
-    --accent: #92400E;
-    --accent-hover: #7A3409;
-    --accent-wash: #FBF2E9;
-    --dot-neutral: #A8A398;
-    --dot-attention: #92400E;
-    --dot-good: #2F6844;
-    --dot-bad: #9B3232;
-    --terminal-bg: #1C1B18;
-    --terminal-text: #F5F3EC;
-    --terminal-muted: #8A8677;
-    --terminal-call: #D9A566;
-    --terminal-warn: #C98080;
-  }
   * { box-sizing: border-box; }
   html, body { overflow-x: hidden; }
   body {
@@ -35,7 +16,6 @@
     color: var(--ink);
     margin: 0;
   }
-  .mono { font-family: 'IBM Plex Mono', ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
   a { color: var(--accent); }
 
   header {
@@ -59,40 +39,6 @@
   #login-view {
     max-width: 320px; margin: 6rem auto 0; padding: 0 1rem;
   }
-  #login-view h2 {
-    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted);
-    margin: 0 0 2rem; font-weight: 600; text-align: center;
-  }
-  .login-field { margin-bottom: 1.5rem; }
-  .login-field label {
-    display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.4rem;
-  }
-  .login-field input {
-    width: 100%; border: none; border-bottom: 1.5px solid var(--hairline-strong);
-    background: transparent; font-family: inherit; font-size: 0.95rem; color: var(--ink);
-    padding: 0.4rem 0.1rem; outline: none;
-  }
-  .login-field input:focus { border-bottom-color: var(--accent); }
-  #login-form .btn-primary { width: 100%; margin-top: 0.5rem; }
-
-  button { font-family: inherit; cursor: pointer; }
-  button:disabled { opacity: 0.45; cursor: not-allowed; }
-
-  .btn-primary {
-    background: var(--accent); color: #fff; border: none; border-radius: 4px;
-    padding: 0.55rem 1.15rem; font-size: 0.85rem; font-weight: 500;
-  }
-  .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-  .btn-secondary {
-    background: transparent; color: var(--ink); border: 1px solid var(--hairline-strong);
-    border-radius: 4px; padding: 0.55rem 1.15rem; font-size: 0.85rem;
-  }
-  .btn-secondary:hover:not(:disabled) { border-color: var(--muted); }
-  .btn-text {
-    background: none; border: none; color: var(--muted);
-    font-size: 0.82rem; padding: 0.4rem 0.5rem;
-  }
-  .btn-text:hover { color: var(--ink); }
 
   main { max-width: 1180px; margin: 0 auto; padding: 2.5rem 2rem 6rem; }
 
@@ -112,12 +58,6 @@
   #upload-zone .upload-subhint { font-size: 0.8rem; margin-top: 0.75rem; }
 
   /* ledger sections */
-  .section { padding: 1.85rem 0; border-bottom: 1px solid var(--hairline); }
-  .section:last-child { border-bottom: none; }
-  .section-title {
-    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted);
-    margin: 0 0 1.1rem; font-weight: 600;
-  }
   .source-line { font-size: 0.92rem; color: var(--muted); margin: 0 0 1.75rem; }
   .source-line strong { color: var(--ink); font-weight: 500; }
 
@@ -125,14 +65,6 @@
   .field-row { display: flex; padding: 0.4rem 0; gap: 1rem; font-size: 0.88rem; border-bottom: 1px solid var(--hairline); }
   .field-row .label { width: 130px; flex-shrink: 0; color: var(--muted); }
   .field-row .value { flex: 1; }
-
-  table.ledger { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 1.5rem; }
-  table.ledger th {
-    text-align: left; font-weight: 600; color: var(--muted); font-size: 0.7rem;
-    text-transform: uppercase; letter-spacing: 0.06em; padding: 0 0 0.5rem; border-bottom: 1px solid var(--hairline-strong);
-  }
-  table.ledger td { padding: 0.5rem 0; border-bottom: 1px solid var(--hairline); }
-  table.ledger th.num, table.ledger td.num { text-align: right; }
 
   .issue-list, .history-list { list-style: none; padding: 0; margin: 1.25rem 0 0; font-size: 0.85rem; }
   .issue-list li, .history-list li { padding: 0.6rem 0; border-bottom: 1px solid var(--hairline); }
@@ -143,27 +75,6 @@
   .history-list li { display: flex; align-items: baseline; gap: 0.75rem; }
   .history-list .ts { color: var(--muted); font-size: 0.78rem; }
   .history-list .reason { color: var(--muted); }
-
-  /* status dot */
-  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.5rem; }
-  .dot.neutral { background: var(--dot-neutral); }
-  .dot.attention { background: var(--dot-attention); }
-  .dot.good { background: var(--dot-good); }
-  .dot.bad { background: var(--dot-bad); }
-  .status-line { display: inline-flex; align-items: center; font-size: 0.88rem; }
-
-  /* analytics */
-  .bar-row { display: flex; align-items: center; gap: 0.85rem; padding: 0.55rem 0; border-bottom: 1px solid var(--hairline); font-size: 0.85rem; }
-  .bar-row:first-child { padding-top: 0; }
-  .bar-label { width: 160px; flex-shrink: 0; }
-  .bar-track { flex: 1; background: var(--hairline); height: 9px; border-radius: 2px; overflow: hidden; }
-  .bar-fill { display: block; height: 100%; }
-  .bar-fill.neutral { background: var(--dot-neutral); }
-  .bar-fill.attention { background: var(--dot-attention); }
-  .bar-fill.good { background: var(--dot-good); }
-  .bar-fill.bad { background: var(--dot-bad); }
-  .bar-count { width: 44px; text-align: right; flex-shrink: 0; }
-  .cost-note { font-size: 0.78rem; color: var(--muted); margin-top: 1rem; }
 
   /* trace terminal */
   #trace-terminal {
@@ -200,16 +111,6 @@
     background: #fff; color: var(--ink);
   }
   #action-result { margin-top: 0.85rem; font-size: 0.85rem; }
-
-  .muted { color: var(--muted); font-size: 0.85rem; }
-  .error-text { color: var(--dot-bad); font-size: 0.85rem; margin-top: 0.6rem; }
-  .spinner {
-    display: inline-block; width: 13px; height: 13px; border: 2px solid var(--hairline-strong);
-    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite;
-    vertical-align: middle; margin-right: 0.5rem;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .hidden { display: none !important; }
 
   /* recent drawer */
   #recent-scrim {
@@ -258,21 +159,8 @@
 </header>
 
 <main>
-  <div id="login-view" class="hidden">
-    <h2>Log in</h2>
-    <form id="login-form">
-      <div class="login-field">
-        <label for="login-username">Username</label>
-        <input type="text" id="login-username" autocomplete="username" required />
-      </div>
-      <div class="login-field">
-        <label for="login-password">Password</label>
-        <input type="password" id="login-password" autocomplete="current-password" required />
-      </div>
-      <button type="submit" class="btn-primary" id="login-button">Log in</button>
-      <p class="error-text hidden" id="login-error"></p>
-    </form>
-  </div>
+  <!-- Mounted by ../frontend (React) via window.LedgerReact.mountLogin(). -->
+  <div id="login-view" class="hidden"></div>
 
   <div id="upload-view" class="hidden">
     <div id="upload-zone" tabindex="0">
@@ -342,33 +230,8 @@
     </section>
   </div>
 
-  <div id="analytics-view" class="hidden">
-    <section class="section">
-      <h2 class="section-title">Invoices by lifecycle status</h2>
-      <div id="analytics-status-bars"></div>
-    </section>
-
-    <section class="section">
-      <h2 class="section-title">Top exception reasons</h2>
-      <table class="ledger" id="analytics-exceptions-table">
-        <thead><tr><th>Step</th><th>Rule</th><th class="num">Count</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <section class="section">
-      <h2 class="section-title">Agent usage by day</h2>
-      <table class="ledger" id="analytics-usage-table">
-        <thead>
-          <tr><th>Date</th><th class="num">Investigations</th><th class="num">Tokens</th><th class="num">Est. cost (USD)</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <p class="cost-note">Cost is an estimate from illustrative per-token rates, not an actual billed amount.</p>
-    </section>
-
-    <p class="error-text hidden" id="analytics-error"></p>
-  </div>
+  <!-- Mounted by ../frontend (React) via window.LedgerReact.mountAnalytics(). -->
+  <div id="analytics-view" class="hidden"></div>
 </main>
 
 <div id="recent-scrim"></div>
@@ -380,7 +243,15 @@
   <div class="recent-list" id="recent-list"></div>
 </div>
 
-<script>
+<!--
+  Built from ../frontend (React), see frontend/vite.config.ts -- fixed filename since
+  this dir is served with Cache-Control: no-store (NoCacheStaticFiles in main.py), so
+  there's nothing to cache-bust. Must load before the app script below: both are
+  `type="module"` (deferred, run in document order after parsing) so window.LedgerReact
+  is guaranteed to exist by the time checkAuthAndInit() calls into it.
+-->
+<script type="module" src="react/main.js"></script>
+<script type="module">
   const el = (id) => document.getElementById(id);
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   let currentInvoiceId = null;
@@ -435,6 +306,7 @@
     el("detail-view").classList.add("hidden");
     el("analytics-view").classList.add("hidden");
     el("login-view").classList.remove("hidden");
+    window.LedgerReact.mountLogin();
   }
 
   function showUploadView() {
@@ -472,7 +344,7 @@
     el("upload-view").classList.add("hidden");
     el("detail-view").classList.add("hidden");
     el("analytics-view").classList.remove("hidden");
-    loadAnalytics();
+    window.LedgerReact.mountAnalytics();
   }
 
   function renderUserInfo(user) {
@@ -511,38 +383,16 @@
     }
   });
 
-  el("login-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    el("login-error").classList.add("hidden");
-    el("login-button").disabled = true;
-
-    try {
-      const response = await fetch("/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: el("login-username").value.trim(),
-          password: el("login-password").value,
-        }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.detail || "Login failed.");
-
-      renderUserInfo(body);
-      el("login-password").value = "";
-      showUploadView();
-    } catch (err) {
-      el("login-error").textContent = err.message;
-      el("login-error").classList.remove("hidden");
-    } finally {
-      el("login-button").disabled = false;
-    }
+  // Dispatched by the React login form (../frontend/src/LoginApp.tsx) after a
+  // successful POST /auth/login -- the vanilla shell still owns header state and
+  // view switching, so it reacts here rather than the React app knowing about them.
+  window.addEventListener("ledger:login", (event) => {
+    renderUserInfo(event.detail);
+    showUploadView();
   });
 
   el("logout-button").addEventListener("click", async () => {
     await fetch("/auth/logout", { method: "POST" });
-    el("login-username").value = "";
-    el("login-password").value = "";
     showLoginView();
   });
 
@@ -929,74 +779,8 @@
   });
 
   // --- analytics (manager only) --------------------------------------------------------
-
-  function renderStatusBars(counts) {
-    const container = el("analytics-status-bars");
-    if (counts.length === 0) {
-      container.innerHTML = `<p class="muted">No invoices yet.</p>`;
-      return;
-    }
-    const max = Math.max(...counts.map((c) => c.count));
-    container.innerHTML = counts.map((c) => {
-      const status = c.decision_status || "unknown";
-      const dotClass = STATUS_DOT[status] || "neutral";
-      const pct = max > 0 ? Math.round((c.count / max) * 100) : 0;
-      return `
-        <div class="bar-row">
-          <span class="bar-label mono">${escapeHtml(status)}</span>
-          <span class="bar-track"><span class="bar-fill ${dotClass}" style="width:${pct}%"></span></span>
-          <span class="bar-count mono">${c.count}</span>
-        </div>
-      `;
-    }).join("");
-  }
-
-  function renderExceptionReasons(reasons) {
-    const tbody = document.querySelector("#analytics-exceptions-table tbody");
-    if (reasons.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="3" class="muted">No validation issues recorded.</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = reasons.map((r) => `
-      <tr>
-        <td class="mono">${escapeHtml(r.step)}</td>
-        <td class="mono">${escapeHtml(r.rule_code)}</td>
-        <td class="num mono">${r.count}</td>
-      </tr>
-    `).join("");
-  }
-
-  function renderUsageByDay(days) {
-    const tbody = document.querySelector("#analytics-usage-table tbody");
-    if (days.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="4" class="muted">No agent investigations recorded.</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = days.map((d) => `
-      <tr>
-        <td class="mono">${escapeHtml(d.date)}</td>
-        <td class="num mono">${d.investigations}</td>
-        <td class="num mono">${d.total_tokens}</td>
-        <td class="num mono">$${escapeHtml(d.estimated_cost_usd)}</td>
-      </tr>
-    `).join("");
-  }
-
-  async function loadAnalytics() {
-    el("analytics-error").classList.add("hidden");
-    try {
-      const response = await fetch("/analytics/summary");
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.detail || "Failed to load analytics.");
-
-      renderStatusBars(body.status_counts);
-      renderExceptionReasons(body.exception_reasons);
-      renderUsageByDay(body.usage_by_day);
-    } catch (err) {
-      el("analytics-error").textContent = err.message;
-      el("analytics-error").classList.remove("hidden");
-    }
-  }
+  // Rendering lives in React now -- see ../frontend/src/AnalyticsApp.tsx, mounted via
+  // window.LedgerReact.mountAnalytics() in showAnalyticsView() above.
 
   window.addEventListener("hashchange", () => {
     if (location.hash === "#analytics") {
@@ -1010,3 +794,4 @@
 </script>
 </body>
 </html>
+
