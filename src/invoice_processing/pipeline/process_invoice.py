@@ -5,7 +5,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from invoice_processing.decision.result import DecisionStatus
-from invoice_processing.domain.enums import InvoiceStatus
+from invoice_processing.domain.enums import IntakeSource, InvoiceStatus
 from invoice_processing.domain.invoice import Invoice
 from invoice_processing.extraction.router import extract
 from invoice_processing.parsing.mapper import map_to_invoice
@@ -27,10 +27,15 @@ class PipelineResult:
     validation_result: ValidationResult
     decision_status: DecisionStatus
     status_history: list[StatusHistoryEntry]
+    source: IntakeSource
 
 
 def process_invoice(
-    pdf_path: Path, session: Session, *, source_filename: str | None = None
+    pdf_path: Path,
+    session: Session,
+    *,
+    source_filename: str | None = None,
+    source: IntakeSource = IntakeSource.MANUAL_UPLOAD,
 ) -> PipelineResult:
     document = extract(pdf_path)
     invoice = map_to_invoice(document)
@@ -44,6 +49,7 @@ def process_invoice(
     invoice_id = repository.save(
         invoice,
         source_filename=source_filename or pdf_path.name,
+        source=source,
         extraction_method=document.method,
         raw_text=document.full_text,
         page_count=document.page_count,
@@ -72,4 +78,5 @@ def process_invoice(
         validation_result=validation_result,
         decision_status=DecisionStatus(stored.decision_status),
         status_history=stored.status_history,
+        source=IntakeSource(stored.source),
     )

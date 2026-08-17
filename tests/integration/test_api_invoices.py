@@ -28,10 +28,18 @@ def test_upload_and_retrieve_invoice(client: TestClient, db_session: Session, tm
     body = response.json()
     assert body["invoice_number"] == invoice_number
     assert body["status"] == "valid"
+    assert body["source"] == "manual_upload"
 
     get_response = client.get(f"/invoices/{body['id']}")
     assert get_response.status_code == 200
     assert get_response.json()["invoice_number"] == invoice_number
+    assert get_response.json()["source"] == "manual_upload"
+
+    list_response = client.get("/invoices", params={"limit": 50})
+    assert list_response.status_code == 200
+    summaries = {item["id"]: item for item in list_response.json()}
+    assert summaries[body["id"]]["source"] == "manual_upload"
+    assert summaries[body["id"]]["invoice_number"] == invoice_number
 
 
 def test_upload_rejects_non_pdf(client: TestClient, tmp_path: Path):

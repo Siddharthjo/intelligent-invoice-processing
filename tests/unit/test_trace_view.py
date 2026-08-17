@@ -77,3 +77,19 @@ def test_handles_malformed_tool_result_content_gracefully():
 
 def test_empty_trace_returns_no_steps():
     assert to_trace_steps([]) == []
+
+
+def test_merges_step_timestamps_by_index():
+    steps = to_trace_steps(TRACE, [1000, 2000])
+    assert steps[0]["timestamp_ms"] == 1000
+    assert steps[1]["timestamp_ms"] == 2000
+
+
+def test_missing_timestamps_default_to_none():
+    assert all(s["timestamp_ms"] is None for s in to_trace_steps(TRACE))
+
+
+def test_shorter_timestamps_list_defaults_missing_entries_to_none():
+    steps = to_trace_steps(TRACE, [1000])
+    assert steps[0]["timestamp_ms"] == 1000
+    assert steps[1]["timestamp_ms"] is None

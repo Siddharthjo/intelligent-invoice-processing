@@ -37,6 +37,7 @@ class InvoiceRecord(Base):
     status: Mapped[str]
     decision_status: Mapped[str | None]
     source_filename: Mapped[str | None]
+    source: Mapped[str]
 
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
@@ -131,6 +132,10 @@ class AgentInvestigationRecord(Base):
     completion_tokens: Mapped[int | None]
     termination_reason: Mapped[str]
     latency_ms: Mapped[int]
+    # Nullable, no backfill: investigations recorded before this was added genuinely
+    # have no per-step timing to reconstruct, so NULL is the honest value, not a
+    # fabricated backfill (unlike e.g. invoices.source, which had a true historical value).
+    step_timestamps_ms: Mapped[list[int] | None] = mapped_column(JSONB)
 
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

@@ -28,3 +28,7 @@ class AgentInvestigationResult(BaseModel):
     completion_tokens: int | None = None
     termination_reason: TerminationReason
     latency_ms: int
+    # Wall-clock epoch-ms captured at each real tool dispatch, in the same order/count
+    # as the non-submit_recommendation tool calls trace_view.to_trace_steps() derives
+    # from `trace` -- lets the UI show a genuine timestamped log, not a fabricated one.
+    step_timestamps_ms: list[int] = []

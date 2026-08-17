@@ -7,8 +7,9 @@ from pydantic import BaseModel, model_validator
 from invoice_processing.agent.result import AgentInvestigationResult, Recommendation, TerminationReason
 from invoice_processing.agent.trace_view import to_trace_steps
 from invoice_processing.decision.result import ActionType, DecisionResult, DecisionStatus, ExecutionResult
-from invoice_processing.domain.enums import InvoiceStatus
+from invoice_processing.domain.enums import IntakeSource, InvoiceStatus
 from invoice_processing.domain.invoice import Invoice
+from invoice_processing.intake.gmail import GmailPollResult
 from invoice_processing.persistence.orm_models import AgentInvestigationRecord, InvoiceDecisionRecord
 from invoice_processing.persistence.repository import StatusHistoryEntry, StoredInvoice
 from invoice_processing.pipeline.process_invoice import PipelineResult
@@ -53,6 +54,7 @@ class InvoiceOut(BaseModel):
     status: InvoiceStatus
     decision_status: DecisionStatus | None
     source_filename: str | None
+    source: IntakeSource
     validation_issues: list[ValidationIssueOut]
     status_history: list[StatusHistoryEntryOut]
 
@@ -63,6 +65,7 @@ class InvoiceOut(BaseModel):
         id: UUID,
         invoice: Invoice,
         source_filename: str | None,
+        source: str,
         validation_issues: list[ValidationIssue],
         decision_status: str | None = None,
         status_history: list[StatusHistoryEntry] | None = None,
@@ -85,6 +88,7 @@ class InvoiceOut(BaseModel):
             status=invoice.status,
             decision_status=DecisionStatus(decision_status) if decision_status else None,
             source_filename=source_filename,
+            source=IntakeSource(source),
             validation_issues=[ValidationIssueOut(**issue.model_dump()) for issue in validation_issues],
             status_history=[
                 StatusHistoryEntryOut(
@@ -102,6 +106,7 @@ class InvoiceOut(BaseModel):
             id=result.invoice_id,
             invoice=result.invoice,
             source_filename=source_filename,
+            source=result.source,
             validation_issues=result.validation_result.issues,
             decision_status=result.decision_status,
             status_history=result.status_history,
@@ -113,6 +118,7 @@ class InvoiceOut(BaseModel):
             id=stored.id,
             invoice=stored.invoice,
             source_filename=stored.source_filename,
+            source=stored.source,
             validation_issues=stored.validation_issues,
             decision_status=stored.decision_status,
             status_history=stored.status_history,
@@ -128,6 +134,7 @@ class InvoiceSummaryOut(BaseModel):
     total_amount: Decimal
     status: InvoiceStatus
     decision_status: DecisionStatus | None
+    source: IntakeSource
 
     @classmethod
     def from_stored(cls, stored: StoredInvoice) -> "InvoiceSummaryOut":
@@ -140,6 +147,7 @@ class InvoiceSummaryOut(BaseModel):
             total_amount=stored.invoice.total_amount,
             status=stored.invoice.status,
             decision_status=DecisionStatus(stored.decision_status) if stored.decision_status else None,
+            source=IntakeSource(stored.source),
         )
 
 
@@ -148,6 +156,7 @@ class TraceStepOut(BaseModel):
     tool: str
     arguments: dict
     result: dict | None
+    timestamp_ms: int | None
 
 
 class InvestigationOut(BaseModel):
@@ -186,7 +195,10 @@ class InvestigationOut(BaseModel):
             total_tokens=_total_tokens(investigation.prompt_tokens, investigation.completion_tokens),
             latency_ms=investigation.latency_ms,
             termination_reason=investigation.termination_reason,
-            steps=[TraceStepOut(**step) for step in to_trace_steps(investigation.trace)],
+            steps=[
+                TraceStepOut(**step)
+                for step in to_trace_steps(investigation.trace, investigation.step_timestamps_ms)
+            ],
             decision_id=decision.id,
             decision_status=decision.decision_status,
             decision_reasoning=decision.decision_reasoning,
@@ -210,7 +222,10 @@ class InvestigationOut(BaseModel):
             total_tokens=_total_tokens(investigation.prompt_tokens, investigation.completion_tokens),
             latency_ms=investigation.latency_ms,
             termination_reason=TerminationReason(investigation.termination_reason),
-            steps=[TraceStepOut(**step) for step in to_trace_steps(investigation.trace)],
+            steps=[
+                TraceStepOut(**step)
+                for step in to_trace_steps(investigation.trace, investigation.step_timestamps_ms)
+            ],
             decision_id=decision.id,
             decision_status=DecisionStatus(decision.decision),
             decision_reasoning=decision.decision_reasoning,
@@ -252,4 +267,18 @@ class DecisionExecutionOut(BaseModel):
             reason=result.reason,
             resulting_decision_status=result.resulting_decision_status,
             executed_at=result.executed_at,
+        )
+
+
+class GmailCheckResultOut(BaseModel):
+    checked_messages: int
+    processed_invoice_ids: list[UUID]
+    failed_message_count: int
+
+    @classmethod
+    def from_result(cls, result: GmailPollResult) -> "GmailCheckResultOut":
+        return cls(
+            checked_messages=result.checked_messages,
+            processed_invoice_ids=result.processed_invoice_ids,
+            failed_message_count=len(result.failed_message_ids),
         )

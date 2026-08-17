@@ -47,6 +47,7 @@ def investigate_invoice(
             completion_tokens=result.completion_tokens,
             termination_reason=result.termination_reason,
             latency_ms=result.latency_ms,
+            step_timestamps_ms=result.step_timestamps_ms,
         )
     )
     session.commit()

@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from invoice_processing.domain.enums import ExtractionMethod, InvoiceStatus
+from invoice_processing.domain.enums import ExtractionMethod, IntakeSource, InvoiceStatus
 from invoice_processing.domain.invoice import Invoice, LineItem, Party
 from invoice_processing.persistence.orm_models import (
     AgentInvestigationRecord,
@@ -31,6 +31,7 @@ class StoredInvoice:
     id: uuid.UUID
     invoice: Invoice
     source_filename: str | None
+    source: str
     validation_issues: list[ValidationIssue]
     decision_status: str | None
     status_history: list[StatusHistoryEntry]
@@ -63,6 +64,7 @@ class InvoiceRepository:
         invoice: Invoice,
         *,
         source_filename: str,
+        source: IntakeSource,
         extraction_method: ExtractionMethod,
         raw_text: str,
         page_count: int,
@@ -85,6 +87,7 @@ class InvoiceRepository:
             total_amount=invoice.total_amount,
             status=invoice.status,
             source_filename=source_filename,
+            source=source,
             line_items=[
                 LineItemRecord(
                     line_number=index,
@@ -185,6 +188,7 @@ def _to_stored(record: InvoiceRecord) -> StoredInvoice:
         id=record.id,
         invoice=_to_domain(record),
         source_filename=record.source_filename,
+        source=record.source,
         validation_issues=[
             ValidationIssue(
                 step=issue.step,

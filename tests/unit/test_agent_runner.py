@@ -26,6 +26,7 @@ def _stored_invoice() -> StoredInvoice:
         id=uuid.uuid4(),
         invoice=invoice,
         source_filename="test.pdf",
+        source="manual_upload",
         validation_issues=[],
         decision_status=None,
         status_history=[],

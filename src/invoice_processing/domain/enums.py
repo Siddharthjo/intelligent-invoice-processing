@@ -10,3 +10,8 @@ class InvoiceStatus(StrEnum):
 class ExtractionMethod(StrEnum):
     TEXT_LAYER = "text_layer"
     OCR = "ocr"
+
+
+class IntakeSource(StrEnum):
+    MANUAL_UPLOAD = "manual_upload"
+    GMAIL = "gmail"

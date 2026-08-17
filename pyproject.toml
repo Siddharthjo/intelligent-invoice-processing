@@ -21,7 +21,11 @@ dependencies = [
     "pdf2image (>=1.17.0,<2.0.0)",
     "python-multipart (>=0.0.32,<0.0.33)",
     "python-dateutil (>=2.9.0.post0,<3.0.0)",
-    "openai (>=3.0.0,<4.0.0)"
+    "openai (>=3.0.0,<4.0.0)",
+    "google-api-python-client (>=2.198.0,<3.0.0)",
+    "google-auth-httplib2 (>=0.4.1,<0.5.0)",
+    "google-auth-oauthlib (>=1.4.0,<2.0.0)",
+    "apscheduler (>=3.11.3,<4.0.0)"
 ]
 
 
@@ -42,6 +46,7 @@ reportlab = "^5.0.0"
 process-invoice = "invoice_processing.cli:main"
 seed-mock-erp = "invoice_processing.erp_mock.seed:main"
 evaluate-agent = "evals.run:main"
+gmail-authorize = "invoice_processing.intake.gmail:authorize_cli"
 
 [tool.ruff]
 line-length = 110

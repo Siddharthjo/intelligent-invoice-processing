@@ -96,6 +96,7 @@ def _fallback_result(
     prompt_tokens: int,
     completion_tokens: int,
     latency_ms: int,
+    step_timestamps_ms: list[int],
 ) -> AgentInvestigationResult:
     return AgentInvestigationResult(
         recommendation=Recommendation.HUMAN_REVIEW,
@@ -108,6 +109,7 @@ def _fallback_result(
         completion_tokens=completion_tokens or None,
         termination_reason=termination_reason,
         latency_ms=latency_ms,
+        step_timestamps_ms=step_timestamps_ms,
     )
 
 
@@ -132,6 +134,7 @@ def run_investigation(
     tool_call_count = 0
     prompt_tokens = 0
     completion_tokens = 0
+    step_timestamps_ms: list[int] = []
     started_at = time.monotonic()
 
     def elapsed_ms() -> int:
@@ -168,6 +171,7 @@ def run_investigation(
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 latency_ms=elapsed_ms(),
+                step_timestamps_ms=step_timestamps_ms,
             )
 
         if response.usage is not None:
@@ -209,6 +213,7 @@ def run_investigation(
                     completion_tokens=completion_tokens or None,
                     termination_reason=TerminationReason.COMPLETED,
                     latency_ms=latency_ms,
+                    step_timestamps_ms=step_timestamps_ms,
                 )
 
             dispatch = dispatch_tool(tool_call.function.name, arguments, context, allowed_permissions)
@@ -218,6 +223,7 @@ def run_investigation(
                     stored.id,
                     tool_call.function.name,
                 )
+            step_timestamps_ms.append(int(time.time() * 1000))
             messages.append(
                 {"role": "tool", "tool_call_id": tool_call.id, "content": json.dumps(dispatch.result)}
             )
@@ -242,4 +248,5 @@ def run_investigation(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         latency_ms=latency_ms,
+        step_timestamps_ms=step_timestamps_ms,
     )

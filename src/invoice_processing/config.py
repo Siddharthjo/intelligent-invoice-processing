@@ -27,6 +27,27 @@ class Settings(BaseSettings):
     agent_po_variance_tolerance_services_pct: Decimal = Decimal("0.05")
     agent_po_variance_tolerance_indirect_pct: Decimal = Decimal("0.08")
 
+    gmail_enabled: bool = False
+    gmail_client_id: str | None = None
+    gmail_client_secret: str | None = None
+    gmail_refresh_token: str | None = None
+    # Base search filter -- the label exclusions that make this idempotent are always
+    # appended in code (see intake.gmail._effective_query), not baked in here, so they
+    # can never drift out of sync with gmail_processed_label/gmail_failed_label below.
+    #
+    # Defaults to the last 7 days so a first run doesn't sweep the entire mailbox
+    # history -- unscoped "has:attachment filename:pdf" matches every PDF attachment
+    # you've ever received, not just invoices. For real use, scope this further:
+    # e.g. "label:invoices has:attachment filename:pdf" against a dedicated Gmail
+    # label/folder you (or a mail filter) route actual invoices into, rather than
+    # relying on a date window against your whole inbox.
+    gmail_query: str = "has:attachment filename:pdf newer_than:7d"
+    gmail_processed_label: str = "invoice-processed"
+    gmail_failed_label: str = "invoice-intake-failed"
+    # None/0 disables the in-process scheduler; POST /gmail/check-now always works
+    # regardless of this setting.
+    gmail_poll_interval_minutes: int | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
