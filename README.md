@@ -15,8 +15,8 @@ flowchart TD
     subgraph D1[" Deterministic "]
         B["Extraction<br/>text-layer (pdfplumber) + OCR fallback (Tesseract)"]
         C["Parsing<br/>regex/heuristics to canonical domain.Invoice"]
-        D["Validation<br/>V1-V9 deterministic pipeline (vendor, tax, bank, currency, arithmetic...)"]
-        E[("Postgres<br/>invoices, line_items, validation_issues")]
+        D["Validation<br/>PRE tier (structural) + V1-V9 numbered pipeline<br/>(vendor, tax, bank, currency, PO-type tolerance, arithmetic)"]
+        E[("Postgres<br/>invoices, line_items, validation_issues,<br/>invoice_status_history")]
     end
 
     subgraph AG[" Agentic "]
@@ -25,40 +25,44 @@ flowchart TD
     end
 
     subgraph D2[" Deterministic "]
-        P["Decision Policy<br/>recommendation → decision_status<br/>+ safety overrides"]
+        P["Decision Policy<br/>recommendation → decision_status<br/>+ 2 safety overrides"]
     end
 
     subgraph H2[" Human "]
         HA["Approve & Post /<br/>Return to Vendor"]
     end
 
-    A --> B --> C --> D --> E --> F
+    A --> B --> C --> D --> E
+    E -->|pending_approval| F
+    E -->|severe V9 failure: rejected, agent skipped| Z[Resolved]
     F <--> G
     F -->|recommendation + trace| P
-    P -->|posted / returned_to_vendor| Z[Resolved]
+    P -->|posted / returned_to_vendor| Z
     P -->|exception_workflow| HA --> Z
 ```
 
-`Extraction` is labeled Deterministic on the primary text-layer path; the OCR fallback is AI-assisted (a fixed-output ML model, not a reasoning step) but still not agentic — it never makes a judgment call. Every arrow into Postgres is append-only where it represents a decision: `agent_investigations`, `invoice_decisions`, and `invoice_actions` are three separate, ever-growing audit tables, not one row that gets overwritten.
+`Extraction` is labeled Deterministic on the primary text-layer path; the OCR fallback is AI-assisted (a fixed-output ML model, not a reasoning step) but still not agentic — it never makes a judgment call. Every invoice's `decision_status` moves through a full lifecycle -- `received → validated → pending_approval → exception_workflow → posted / rejected / returned_to_vendor` -- and every transition is logged to `invoice_status_history`, not just the resting value on the invoice row. Every arrow into Postgres is append-only where it represents a decision: `agent_investigations`, `invoice_decisions`, `invoice_actions`, and `invoice_status_history` are four separate, ever-growing audit tables, not rows that get overwritten.
 
 ## Design decisions worth defending
 
 - **Domain model ≠ API schema.** `domain.Invoice` is the canonical business object that flows through extraction → validation; API response schemas (`InvoiceOut`, `InvestigationOut`, ...) are a separate, independently-evolving contract. `decision_status` deliberately lives *outside* `domain.Invoice` — it's workflow state (who's supposed to act next), not invoice data, and conflating the two would make the core model harder to reason about as the workflow grows.
 - **Extraction and parsing are 100% deterministic — no LLM.** Text-layer extraction and regex-based field parsing are reproducible, unit-testable without hitting an API, and cheap. An LLM would handle messier layouts better, but a first vertical slice needs the guarantees determinism buys, not maximum flexibility.
+- **Validation is a numbered, context-threaded pipeline, not a flat rule list.** An unnumbered `PRE` tier handles structural well-formedness (line items present, date sanity) since those aren't business-validation steps; the numbered `V1`-`V9` sequence (vendor identification through arithmetic/total) shares a single `ValidationContext` so, e.g., `V4` company-code determination can read the PO that `V1` already resolved instead of re-querying it. A severe `V9` arithmetic failure short-circuits the whole pipeline straight to `rejected`, skipping the agent investigation entirely — there's nothing for an LLM to usefully judge when the invoice's own numbers don't reconcile, and it saves the API call.
+- **Three-way-match tolerance is PO-type-specific, not a flat percentage.** `goods`/`services`/`indirect` purchase orders each get their own configured variance tolerance (tightest for goods, loosest for services) because a single flat threshold doesn't reflect how precise/countable vs. estimated those categories really are. `calculate_variance` resolves the PO and its type server-side rather than trusting the agent to relay a `po_amount` it read off a tool result.
 - **The agent is a hand-rolled tool-calling loop, not a framework.** Full control over the permission boundary (`TOOL_REGISTRY`/`dispatch_tool`), termination semantics (max-turns, timeout), and exactly what's in every message — no framework abstraction between "what the model saw" and "what we can audit."
-- **"Agent proposes, deterministic code disposes."** The model's `recommendation` never directly sets `decision_status` — it goes through `policy.decide()` plus explicit override checks. This isn't hypothetical: an override caught the model auto-approving an invoice with no PO reference despite the prompt saying not to. Business-critical state transitions don't get to depend on the model reliably following instructions.
-- **Append-only audit tables everywhere.** `agent_investigations`, `invoice_decisions`, and `invoice_actions` are never updated in place. An AP system needs to answer "who decided this, and why" long after the fact, including across re-investigations of the same invoice.
+- **"Agent proposes, deterministic code disposes."** The model's `recommendation` never directly sets `decision_status` — it goes through `policy.decide()` plus two explicit override checks (`_apply_policy_overrides` in `agent/runner.py`): a missing PO reference forces `human_review` even if the model tried `auto_approve`, and a blocked supplier forces `human_review` even if the model tried `auto_approve` *or* `return_to_vendor`. Neither is hypothetical — the no-PO-reference override caught the model auto-approving an invoice despite the prompt saying not to, and the blocked-supplier override was added after an eval run showed the model resolving a blocked-supplier case straight to `return_to_vendor` on its own, bypassing human review for what's typically a compliance/legal hold, not a vendor-side invoice defect. Business-critical state transitions don't get to depend on the model reliably following instructions.
+- **Append-only audit tables everywhere.** `agent_investigations`, `invoice_decisions`, `invoice_actions`, and `invoice_status_history` are never updated in place. An AP system needs to answer "who decided this, and why" long after the fact, including across re-investigations of the same invoice and every lifecycle transition an invoice passed through, even the ones a synchronous pipeline blows through within a single request.
 - **Read/write tool permissions are enforced in code, not convention.** Before any write tool existed, "the agent can only read" was true only because nothing else was defined. `TOOL_REGISTRY` tags every tool `READ`/`WRITE`; `dispatch_tool()` checks the caller's `allowed_permissions` before executing anything. When `post_invoice`/`return_to_vendor` were added, the investigating agent's default permission set (`{READ}`) meant it literally cannot call them — proven, not assumed.
 - **Synchronous request + client-side reveal, not WebSockets.** An investigation takes 5–20 seconds. Returning the full trace in one response and replaying it client-side with a staggered delay gets most of the "live" feel with none of the cost of a background task runner, incremental persistence, or connection lifecycle management — consistent with keeping infra minimal per slice.
 
 ## What's built
 
-1. **Deterministic pipeline** — PDF → extraction (text-layer + OCR) → parsing → canonical `Invoice` → validation → Postgres.
+1. **Deterministic pipeline** — PDF → extraction (text-layer + OCR) → parsing → canonical `Invoice` → a `PRE` + `V1`-`V9` numbered validation pipeline (vendor identification, vendor status, field cross-validation, company code, duplicate check, bank validation, currency/rate, tax determination, arithmetic/total) with PO-type-specific (`goods`/`services`/`indirect`) three-way-match tolerance → Postgres.
 2. **Tool-calling investigation agent** — OpenAI function-calling loop against 4 read-only tools and mock ERP data (suppliers, purchase orders).
-3. **Decision routing + minimal demo UI** — a full `received → validated → pending_approval → exception_workflow → posted / rejected / returned_to_vendor` lifecycle, policy-driven and append-only audited, single-page frontend with a live-feeling trace reveal.
+3. **Full decision lifecycle + minimal demo UI** — `received → validated → pending_approval → exception_workflow → posted / rejected / returned_to_vendor`, policy-driven with two deterministic safety overrides (missing PO reference, blocked supplier) backstopping the model, a severe arithmetic failure short-circuiting straight to `rejected` without an agent call, an append-only `invoice_status_history` audit trail, and a single-page frontend with a live-feeling trace reveal.
 4. **Automated evaluation suite** — 10 fixed cases spanning the disposition-policy boundary, safety-asymmetric grading.
 5. **Observability + guardrail hardening** — token/latency metrics, an explicit tool permission registry, distinct max-turns/timeout visibility.
-6. **Human-in-the-loop write actions** — `post_invoice`/`return_to_vendor` as permission-gated WRITE tools, executable only by a human, full audit trail.
+6. **Human-in-the-loop write actions** — `post_invoice`/`return_to_vendor` as permission-gated WRITE tools, executable only by a human on an invoice in `exception_workflow`, full audit trail.
 
 ## Real bugs found & fixed
 
@@ -86,11 +90,13 @@ Two accuracy numbers are reported: **strict accuracy** and **safe-outcome rate**
 Latest run (`gpt-4o-mini`):
 
 ```
-Strict accuracy:   10/10 (100.0%)
+Strict accuracy:   9/10 (90.0%)
 Safe-outcome rate: 10/10 (100.0%)
-Avg tool calls:    4.3
-Avg tokens:        5500.5 (prompt: 5321.8, completion: 178.7)
+Avg tool calls:    4.5
+Avg tokens:        6575.6 (prompt: 6415.5, completion: 160.1)
 ```
+
+The one strict miss, `po_closed` (expected `return_to_vendor`, got `human_review`), is a documented, non-regressive case of sampling variance, not a bug: it's the only case stacking three concerns at once (closed PO + missing supplier bank details + a tax-rate mismatch), which is genuinely borderline for the model to resolve consistently — see the comment on that case in `evals/cases.py`. It never flips to `auto_approve` (the dangerous direction), which is why safe-outcome rate stays 10/10 regardless. Worth revisiting only if this kind of flip starts happening on an isolated, single-concern case — that would point to a real prompt/policy gap rather than ordinary variance.
 
 ```bash
 poetry run evaluate-agent   # console report + JSON artifact under evals/results/
@@ -118,7 +124,7 @@ Other entry points:
 ```bash
 poetry run process-invoice path/to/invoice.pdf   # process one PDF via the CLI, no API
 poetry run evaluate-agent                          # run the eval suite
-poetry run pytest                                    # 101 tests (unit + integration)
+poetry run pytest                                    # 104 tests (unit + integration)
 ```
 
 Integration tests that need Postgres or a live OpenAI call skip automatically if the DB isn't reachable or `OPENAI_API_KEY` isn't set.
