@@ -4,6 +4,12 @@
 
 A vertical-slice prototype of an enterprise accounts-payable invoice processing system: PDF invoice in, a posted-or-flagged decision out, with a full audit trail at every step. The interesting part isn't the extraction — it's what happens after: a tool-calling LLM agent investigates each invoice against mock ERP data (supplier status, purchase orders, duplicates), a deterministic policy layer converts its recommendation into a real business decision, and a human can act on it through controlled, permission-gated write actions. This is agentic business logic, not a PDF-to-JSON demo.
 
+## Live Demo
+
+**[Try it live](https://ca-invproc-demo.whitehill-b7082afb.centralus.azurecontainerapps.io/ui/)** — deployed on Azure Container Apps + PostgreSQL Flexible Server, demo-tier (scale-to-zero), so the first request after a period of idle may take a few seconds to cold-start.
+
+[`/health`](https://ca-invproc-demo.whitehill-b7082afb.centralus.azurecontainerapps.io/health) · [`/docs`](https://ca-invproc-demo.whitehill-b7082afb.centralus.azurecontainerapps.io/docs)
+
 ## Architecture
 
 ```mermaid
@@ -130,6 +136,8 @@ poetry run pytest                                    # 104 tests (unit + integra
 Integration tests that need Postgres or a live OpenAI call skip automatically if the DB isn't reachable or `OPENAI_API_KEY` isn't set.
 
 ## Roadmap
+
+*Azure deployment is done, not just planned* — Container Apps + PostgreSQL Flexible Server, one resource group, deployed via imperative `az` CLI (no Terraform/Bicep yet). See [Live Demo](#live-demo) above.
 
 - **Kafka / event backbone** — decouple investigation from the synchronous upload request; enable async processing at a throughput beyond one FastAPI request cycle.
 - **Multi-agent split** — separate the investigation agent from a distinct approval/routing agent, so write-capable roles are structurally isolated, not just permission-flagged within one agent.
