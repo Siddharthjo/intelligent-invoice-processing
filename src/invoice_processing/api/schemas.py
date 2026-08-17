@@ -6,6 +6,7 @@ from pydantic import BaseModel, model_validator
 
 from invoice_processing.agent.result import AgentInvestigationResult, Recommendation, TerminationReason
 from invoice_processing.agent.trace_view import to_trace_steps
+from invoice_processing.analytics.service import DailyUsage, ExceptionReason, StatusCount
 from invoice_processing.decision.result import ActionType, DecisionResult, DecisionStatus, ExecutionResult
 from invoice_processing.domain.enums import IntakeSource, InvoiceStatus, UserRole
 from invoice_processing.domain.invoice import Invoice
@@ -292,3 +293,48 @@ class LoginRequest(BaseModel):
 class UserOut(BaseModel):
     username: str
     role: UserRole
+
+
+class StatusCountOut(BaseModel):
+    # Deliberately a plain string, not the DecisionStatus enum: this is a reporting
+    # view over raw historical data, which can (and in this dev database, does)
+    # contain values from before a status was renamed -- an analytics endpoint should
+    # reflect what's actually there, not crash coercing old rows into the current enum.
+    decision_status: str | None
+    count: int
+
+    @classmethod
+    def from_result(cls, result: StatusCount) -> "StatusCountOut":
+        return cls(decision_status=result.decision_status, count=result.count)
+
+
+class ExceptionReasonOut(BaseModel):
+    step: str
+    rule_code: str
+    count: int
+
+    @classmethod
+    def from_result(cls, result: ExceptionReason) -> "ExceptionReasonOut":
+        return cls(step=result.step, rule_code=result.rule_code, count=result.count)
+
+
+class DailyUsageOut(BaseModel):
+    date: str
+    investigations: int
+    total_tokens: int
+    estimated_cost_usd: Decimal
+
+    @classmethod
+    def from_result(cls, result: DailyUsage) -> "DailyUsageOut":
+        return cls(
+            date=result.date,
+            investigations=result.investigations,
+            total_tokens=result.total_tokens,
+            estimated_cost_usd=result.estimated_cost_usd,
+        )
+
+
+class AnalyticsSummaryOut(BaseModel):
+    status_counts: list[StatusCountOut]
+    exception_reasons: list[ExceptionReasonOut]
+    usage_by_day: list[DailyUsageOut]

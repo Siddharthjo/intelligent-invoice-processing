@@ -152,6 +152,19 @@
   .dot.bad { background: var(--dot-bad); }
   .status-line { display: inline-flex; align-items: center; font-size: 0.88rem; }
 
+  /* analytics */
+  .bar-row { display: flex; align-items: center; gap: 0.85rem; padding: 0.55rem 0; border-bottom: 1px solid var(--hairline); font-size: 0.85rem; }
+  .bar-row:first-child { padding-top: 0; }
+  .bar-label { width: 160px; flex-shrink: 0; }
+  .bar-track { flex: 1; background: var(--hairline); height: 9px; border-radius: 2px; overflow: hidden; }
+  .bar-fill { display: block; height: 100%; }
+  .bar-fill.neutral { background: var(--dot-neutral); }
+  .bar-fill.attention { background: var(--dot-attention); }
+  .bar-fill.good { background: var(--dot-good); }
+  .bar-fill.bad { background: var(--dot-bad); }
+  .bar-count { width: 44px; text-align: right; flex-shrink: 0; }
+  .cost-note { font-size: 0.78rem; color: var(--muted); margin-top: 1rem; }
+
   /* trace terminal */
   #trace-terminal {
     background: var(--terminal-bg); color: var(--terminal-text);
@@ -239,6 +252,7 @@
     <span class="user-info mono" id="user-info"></span>
     <button type="button" class="btn-text" id="new-upload-button">+ New upload</button>
     <button type="button" class="btn-text" id="recent-toggle-button">Recent ▸</button>
+    <button type="button" class="btn-text hidden" id="analytics-nav-button">Analytics</button>
     <button type="button" class="btn-text" id="logout-button">Log out</button>
   </div>
 </header>
@@ -327,6 +341,34 @@
       </div>
     </section>
   </div>
+
+  <div id="analytics-view" class="hidden">
+    <section class="section">
+      <h2 class="section-title">Invoices by lifecycle status</h2>
+      <div id="analytics-status-bars"></div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Top exception reasons</h2>
+      <table class="ledger" id="analytics-exceptions-table">
+        <thead><tr><th>Step</th><th>Rule</th><th class="num">Count</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Agent usage by day</h2>
+      <table class="ledger" id="analytics-usage-table">
+        <thead>
+          <tr><th>Date</th><th class="num">Investigations</th><th class="num">Tokens</th><th class="num">Est. cost (USD)</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p class="cost-note">Cost is an estimate from illustrative per-token rates, not an actual billed amount.</p>
+    </section>
+
+    <p class="error-text hidden" id="analytics-error"></p>
+  </div>
 </main>
 
 <div id="recent-scrim"></div>
@@ -382,20 +424,27 @@
 
   // --- view switching -------------------------------------------------------------------
 
+  function clearAnalyticsHash() {
+    if (location.hash === "#analytics") history.replaceState(null, "", location.pathname + location.search);
+  }
+
   function showLoginView() {
     closeRecentDrawer();
     el("header-actions").classList.add("hidden");
     el("upload-view").classList.add("hidden");
     el("detail-view").classList.add("hidden");
+    el("analytics-view").classList.add("hidden");
     el("login-view").classList.remove("hidden");
   }
 
   function showUploadView() {
     currentInvoiceId = null;
     currentDecisionId = null;
+    clearAnalyticsHash();
     el("login-view").classList.add("hidden");
     el("header-actions").classList.remove("hidden");
     el("detail-view").classList.add("hidden");
+    el("analytics-view").classList.add("hidden");
     el("upload-view").classList.remove("hidden");
     el("upload-error").classList.add("hidden");
     el("upload-filename").classList.add("hidden");
@@ -403,16 +452,34 @@
   }
 
   function showDetailView() {
+    clearAnalyticsHash();
     el("login-view").classList.add("hidden");
     el("header-actions").classList.remove("hidden");
     el("upload-view").classList.add("hidden");
+    el("analytics-view").classList.add("hidden");
     el("detail-view").classList.remove("hidden");
+  }
+
+  function showAnalyticsView() {
+    if (currentUserRole !== "manager") {
+      showUploadView();
+      return;
+    }
+    closeRecentDrawer();
+    location.hash = "#analytics";
+    el("login-view").classList.add("hidden");
+    el("header-actions").classList.remove("hidden");
+    el("upload-view").classList.add("hidden");
+    el("detail-view").classList.add("hidden");
+    el("analytics-view").classList.remove("hidden");
+    loadAnalytics();
   }
 
   function renderUserInfo(user) {
     currentUserRole = user.role;
     el("user-info").innerHTML =
       `${escapeHtml(user.username)} <span class="role">(${escapeHtml(user.role)})</span>`;
+    el("analytics-nav-button").classList.toggle("hidden", user.role !== "manager");
   }
 
   async function checkAuthAndInit() {
@@ -420,7 +487,11 @@
       const response = await fetch("/auth/me");
       if (response.ok) {
         renderUserInfo(await response.json());
-        showUploadView();
+        if (location.hash === "#analytics") {
+          showAnalyticsView();
+        } else {
+          showUploadView();
+        }
       } else {
         showLoginView();
       }
@@ -428,6 +499,17 @@
       showLoginView();
     }
   }
+
+  el("analytics-nav-button").addEventListener("click", () => {
+    // If the hash actually changes, the hashchange listener below calls
+    // showAnalyticsView() -- if we're already there (hash unchanged), no event
+    // fires, so call it directly to still refresh the data.
+    if (location.hash === "#analytics") {
+      showAnalyticsView();
+    } else {
+      location.hash = "#analytics";
+    }
+  });
 
   el("login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -844,6 +926,84 @@
     if (!row) return;
     closeRecentDrawer();
     loadInvoiceById(row.dataset.id);
+  });
+
+  // --- analytics (manager only) --------------------------------------------------------
+
+  function renderStatusBars(counts) {
+    const container = el("analytics-status-bars");
+    if (counts.length === 0) {
+      container.innerHTML = `<p class="muted">No invoices yet.</p>`;
+      return;
+    }
+    const max = Math.max(...counts.map((c) => c.count));
+    container.innerHTML = counts.map((c) => {
+      const status = c.decision_status || "unknown";
+      const dotClass = STATUS_DOT[status] || "neutral";
+      const pct = max > 0 ? Math.round((c.count / max) * 100) : 0;
+      return `
+        <div class="bar-row">
+          <span class="bar-label mono">${escapeHtml(status)}</span>
+          <span class="bar-track"><span class="bar-fill ${dotClass}" style="width:${pct}%"></span></span>
+          <span class="bar-count mono">${c.count}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderExceptionReasons(reasons) {
+    const tbody = document.querySelector("#analytics-exceptions-table tbody");
+    if (reasons.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" class="muted">No validation issues recorded.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = reasons.map((r) => `
+      <tr>
+        <td class="mono">${escapeHtml(r.step)}</td>
+        <td class="mono">${escapeHtml(r.rule_code)}</td>
+        <td class="num mono">${r.count}</td>
+      </tr>
+    `).join("");
+  }
+
+  function renderUsageByDay(days) {
+    const tbody = document.querySelector("#analytics-usage-table tbody");
+    if (days.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="4" class="muted">No agent investigations recorded.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = days.map((d) => `
+      <tr>
+        <td class="mono">${escapeHtml(d.date)}</td>
+        <td class="num mono">${d.investigations}</td>
+        <td class="num mono">${d.total_tokens}</td>
+        <td class="num mono">$${escapeHtml(d.estimated_cost_usd)}</td>
+      </tr>
+    `).join("");
+  }
+
+  async function loadAnalytics() {
+    el("analytics-error").classList.add("hidden");
+    try {
+      const response = await fetch("/analytics/summary");
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Failed to load analytics.");
+
+      renderStatusBars(body.status_counts);
+      renderExceptionReasons(body.exception_reasons);
+      renderUsageByDay(body.usage_by_day);
+    } catch (err) {
+      el("analytics-error").textContent = err.message;
+      el("analytics-error").classList.remove("hidden");
+    }
+  }
+
+  window.addEventListener("hashchange", () => {
+    if (location.hash === "#analytics") {
+      showAnalyticsView();
+    } else if (!el("analytics-view").classList.contains("hidden")) {
+      showUploadView();
+    }
   });
 
   checkAuthAndInit();

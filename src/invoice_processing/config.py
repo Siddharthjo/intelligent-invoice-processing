@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     # False for local http://localhost dev; set true for the Azure deployment (HTTPS).
     session_cookie_secure: bool = False
 
+    # Illustrative gpt-4o-mini-ish pricing for the analytics cost *estimate* only --
+    # not pulled from any real billing API, never presented as an actual invoiced
+    # amount. Same "illustrative mock value" spirit as the PO variance tolerances above.
+    agent_cost_per_1k_prompt_tokens: Decimal = Decimal("0.00015")
+    agent_cost_per_1k_completion_tokens: Decimal = Decimal("0.0006")
+
 
 @lru_cache
 def get_settings() -> Settings:
