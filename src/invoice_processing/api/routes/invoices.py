@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, status
 
 from invoice_processing.agent.client import AgentNotConfiguredError
 from invoice_processing.agent.investigate import InvoiceNotFoundError, investigate_invoice
-from invoice_processing.api.deps import CurrentUser, SessionDep
+from invoice_processing.api.deps import CurrentUser, RequireManager, SessionDep
 from invoice_processing.api.schemas import (
     DecisionExecutionOut,
     ExecuteDecisionRequest,
@@ -106,7 +106,7 @@ async def execute(
     decision_id: UUID,
     body: ExecuteDecisionRequest,
     session: SessionDep,
-    current_user: CurrentUser,
+    current_user: RequireManager,
 ) -> DecisionExecutionOut:
     try:
         result = execute_decision(invoice_id, decision_id, body.action, body.reason, session)

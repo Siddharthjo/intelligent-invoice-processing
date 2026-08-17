@@ -4,10 +4,10 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 
-def test_execute_post_via_api(clerk_client: TestClient, make_exception_workflow_invoice, tmp_path: Path):
+def test_execute_post_via_api(manager_client: TestClient, make_exception_workflow_invoice, tmp_path: Path):
     invoice_id, decision_id = make_exception_workflow_invoice(tmp_path)
 
-    response = clerk_client.post(
+    response = manager_client.post(
         f"/invoices/{invoice_id}/decisions/{decision_id}/execute", json={"action": "post"}
     )
 
@@ -18,11 +18,11 @@ def test_execute_post_via_api(clerk_client: TestClient, make_exception_workflow_
 
 
 def test_execute_return_requires_reason(
-    clerk_client: TestClient, make_exception_workflow_invoice, tmp_path: Path
+    manager_client: TestClient, make_exception_workflow_invoice, tmp_path: Path
 ):
     invoice_id, decision_id = make_exception_workflow_invoice(tmp_path)
 
-    response = clerk_client.post(
+    response = manager_client.post(
         f"/invoices/{invoice_id}/decisions/{decision_id}/execute", json={"action": "return"}
     )
 
@@ -30,11 +30,11 @@ def test_execute_return_requires_reason(
 
 
 def test_execute_return_with_reason_via_api(
-    clerk_client: TestClient, make_exception_workflow_invoice, tmp_path: Path
+    manager_client: TestClient, make_exception_workflow_invoice, tmp_path: Path
 ):
     invoice_id, decision_id = make_exception_workflow_invoice(tmp_path)
 
-    response = clerk_client.post(
+    response = manager_client.post(
         f"/invoices/{invoice_id}/decisions/{decision_id}/execute",
         json={"action": "return", "reason": "amount does not match PO"},
     )
@@ -46,23 +46,23 @@ def test_execute_return_with_reason_via_api(
 
 
 def test_execute_unknown_decision_404s(
-    clerk_client: TestClient, make_exception_workflow_invoice, tmp_path: Path
+    manager_client: TestClient, make_exception_workflow_invoice, tmp_path: Path
 ):
     invoice_id, _ = make_exception_workflow_invoice(tmp_path)
 
-    response = clerk_client.post(
+    response = manager_client.post(
         f"/invoices/{invoice_id}/decisions/{uuid.uuid4()}/execute", json={"action": "post"}
     )
     assert response.status_code == 404
 
 
 def test_execute_already_resolved_409s(
-    clerk_client: TestClient, make_exception_workflow_invoice, tmp_path: Path
+    manager_client: TestClient, make_exception_workflow_invoice, tmp_path: Path
 ):
     invoice_id, decision_id = make_exception_workflow_invoice(tmp_path)
-    clerk_client.post(f"/invoices/{invoice_id}/decisions/{decision_id}/execute", json={"action": "post"})
+    manager_client.post(f"/invoices/{invoice_id}/decisions/{decision_id}/execute", json={"action": "post"})
 
-    response = clerk_client.post(
+    response = manager_client.post(
         f"/invoices/{invoice_id}/decisions/{decision_id}/execute", json={"action": "post"}
     )
     assert response.status_code == 409
@@ -75,3 +75,18 @@ def test_execute_requires_login(client: TestClient, make_exception_workflow_invo
         f"/invoices/{invoice_id}/decisions/{decision_id}/execute", json={"action": "post"}
     )
     assert response.status_code == 401
+
+
+def test_execute_rejects_a_clerk_even_with_a_valid_exception_workflow_decision(
+    clerk_client: TestClient, make_exception_workflow_invoice, tmp_path: Path
+):
+    """The core Part 2 guarantee: a clerk can't execute a decision even when every
+    other precondition (login, real exception_workflow decision, valid action) is met --
+    this is the backend gate the UI's button-hiding is not a substitute for."""
+    invoice_id, decision_id = make_exception_workflow_invoice(tmp_path)
+
+    response = clerk_client.post(
+        f"/invoices/{invoice_id}/decisions/{decision_id}/execute", json={"action": "post"}
+    )
+
+    assert response.status_code == 403

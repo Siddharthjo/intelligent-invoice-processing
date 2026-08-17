@@ -343,6 +343,7 @@
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   let currentInvoiceId = null;
   let currentDecisionId = null;
+  let currentUserRole = null;
 
   function escapeHtml(value) {
     const div = document.createElement("div");
@@ -409,6 +410,7 @@
   }
 
   function renderUserInfo(user) {
+    currentUserRole = user.role;
     el("user-info").innerHTML =
       `${escapeHtml(user.username)} <span class="role">(${escapeHtml(user.role)})</span>`;
   }
@@ -674,7 +676,11 @@
     el("approve-post-button").disabled = false;
     el("return-to-vendor-button").disabled = false;
 
-    el("human-actions").classList.toggle("hidden", effectiveStatus !== "exception_workflow");
+    // UI-side gate for a clean clerk experience -- the real enforcement is server-side
+    // (RequireManager on POST .../execute), not this. A clerk simply never sees these
+    // buttons; hiding them here is not what makes them unusable.
+    const canAct = effectiveStatus === "exception_workflow" && currentUserRole === "manager";
+    el("human-actions").classList.toggle("hidden", !canAct);
 
     el("decision-section").classList.remove("hidden");
   }
