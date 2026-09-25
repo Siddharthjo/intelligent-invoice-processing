@@ -26,7 +26,7 @@ def upgrade() -> None:
     op.add_column(
         'invoices', sa.Column('source', sa.String(), nullable=False, server_default='manual_upload')
     )
-    op.alter_column('invoices', 'source', server_default=None)
+    op.alter_column('invoices', 'source', server_default=None, existing_type=sa.String(), existing_nullable=False)
 
 
 def downgrade() -> None:

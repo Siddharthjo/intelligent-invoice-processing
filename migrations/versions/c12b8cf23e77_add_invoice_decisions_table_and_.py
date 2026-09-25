@@ -29,7 +29,7 @@ def upgrade() -> None:
     sa.Column('decision', sa.String(), nullable=False),
     sa.Column('decision_reasoning', sa.Text(), nullable=False),
     sa.Column('policy_version', sa.String(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(), server_default=sa.func.now(), nullable=False),
     sa.ForeignKeyConstraint(['agent_investigation_id'], ['agent_investigations.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['invoice_id'], ['invoices.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')

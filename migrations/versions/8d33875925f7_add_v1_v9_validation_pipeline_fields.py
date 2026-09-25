@@ -28,7 +28,7 @@ def upgrade() -> None:
         'invoice_validation_issues',
         sa.Column('step', sa.String(), nullable=False, server_default='LEGACY'),
     )
-    op.alter_column('invoice_validation_issues', 'step', server_default=None)
+    op.alter_column('invoice_validation_issues', 'step', server_default=None, existing_type=sa.String(), existing_nullable=False)
     op.add_column('invoices', sa.Column('vendor_country', sa.String(), nullable=True))
     op.add_column('invoices', sa.Column('po_number', sa.String(), nullable=True))
     op.add_column('invoices', sa.Column('company_code', sa.String(), nullable=True))

@@ -26,7 +26,7 @@ def upgrade() -> None:
     op.add_column(
         'purchase_orders', sa.Column('po_type', sa.String(), nullable=False, server_default='goods')
     )
-    op.alter_column('purchase_orders', 'po_type', server_default=None)
+    op.alter_column('purchase_orders', 'po_type', server_default=None, existing_type=sa.String(), existing_nullable=False)
 
 
 def downgrade() -> None:

@@ -8,8 +8,9 @@ applications:
       - python_buildpack
     health-check-type: http
     health-check-http-endpoint: /health
+    timeout: 180
     services:
-      - invoice-hana
+      - invoice-schema
     env:
       # OPENAI_API_KEY is intentionally NOT set here -- it's pushed separately via
       # `cf set-env invoice-processing OPENAI_API_KEY ...` so the secret never lands

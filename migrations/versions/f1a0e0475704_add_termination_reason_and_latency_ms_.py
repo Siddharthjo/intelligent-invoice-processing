@@ -31,8 +31,8 @@ def upgrade() -> None:
         'agent_investigations',
         sa.Column('latency_ms', sa.Integer(), nullable=False, server_default='0'),
     )
-    op.alter_column('agent_investigations', 'termination_reason', server_default=None)
-    op.alter_column('agent_investigations', 'latency_ms', server_default=None)
+    op.alter_column('agent_investigations', 'termination_reason', server_default=None, existing_type=sa.String(), existing_nullable=False)
+    op.alter_column('agent_investigations', 'latency_ms', server_default=None, existing_type=sa.Integer(), existing_nullable=False)
 
 
 def downgrade() -> None:

@@ -2,6 +2,7 @@ from decimal import Decimal
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import URL
 
 import json
 import os
@@ -24,7 +25,21 @@ def _get_database_url() -> str:
                 user = creds.get("user")
                 password = creds.get("password")
                 if host and user and password:
-                    return f"hana+hdbcli://{user}:{password}@{host}:{port}"
+                    # HANA Cloud only accepts TLS connections, and a `schema`-plan binding's
+                    # tables live in `schema`, not in the technical user's default schema.
+                    # URL.create escapes the (punctuation-heavy) generated password so it
+                    # round-trips through make_url intact.
+                    query = {"encrypt": "true", "sslValidateCertificate": "true"}
+                    if creds.get("schema"):
+                        query["currentSchema"] = creds["schema"]
+                    return URL.create(
+                        "hana+hdbcli",
+                        username=user,
+                        password=password,
+                        host=host,
+                        port=int(port),
+                        query=query,
+                    ).render_as_string(hide_password=False)
     return os.environ.get(
         "DATABASE_URL",
         "postgresql+psycopg://invoice_app:invoice_app@localhost:5432/invoice_processing"

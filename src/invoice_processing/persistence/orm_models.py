@@ -2,8 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import ForeignKey, Numeric, Text, func
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import JSON, ForeignKey, Numeric, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from invoice_processing.persistence.db import Base
@@ -125,8 +124,8 @@ class AgentInvestigationRecord(Base):
     model: Mapped[str]
     recommendation: Mapped[str]
     reasoning_summary: Mapped[str] = mapped_column(Text)
-    concerns: Mapped[list[str]] = mapped_column(JSONB)
-    trace: Mapped[list[dict]] = mapped_column(JSONB)
+    concerns: Mapped[list[str]] = mapped_column(JSON)
+    trace: Mapped[list[dict]] = mapped_column(JSON)
     tool_call_count: Mapped[int]
     prompt_tokens: Mapped[int | None]
     completion_tokens: Mapped[int | None]
@@ -135,7 +134,7 @@ class AgentInvestigationRecord(Base):
     # Nullable, no backfill: investigations recorded before this was added genuinely
     # have no per-step timing to reconstruct, so NULL is the honest value, not a
     # fabricated backfill (unlike e.g. invoices.source, which had a true historical value).
-    step_timestamps_ms: Mapped[list[int] | None] = mapped_column(JSONB)
+    step_timestamps_ms: Mapped[list[int] | None] = mapped_column(JSON)
 
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

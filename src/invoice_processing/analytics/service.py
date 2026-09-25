@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import Date, cast, func, select
 from sqlalchemy.orm import Session
 
 from invoice_processing.config import get_settings
@@ -59,7 +59,8 @@ def get_exception_reasons(session: Session, *, limit: int = 20) -> list[Exceptio
 
 def get_usage_by_day(session: Session, *, days: int = 30) -> list[DailyUsage]:
     settings = get_settings()
-    day_col = func.date_trunc("day", AgentInvestigationRecord.created_at).label("day")
+    # CAST AS DATE rather than date_trunc: the latter is Postgres-only (fails on HANA).
+    day_col = cast(AgentInvestigationRecord.created_at, Date).label("day")
     stmt = (
         select(
             day_col,
@@ -81,7 +82,7 @@ def get_usage_by_day(session: Session, *, days: int = 30) -> list[DailyUsage]:
         )
         results.append(
             DailyUsage(
-                date=row.day.date().isoformat(),
+                date=row.day.isoformat(),
                 investigations=row.investigations,
                 total_tokens=row.prompt_tokens + row.completion_tokens,
                 estimated_cost_usd=cost.quantize(Decimal("0.0001")),

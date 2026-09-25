@@ -1,1 +1,1 @@
-web: python -m uvicorn invoice_processing.main:app --host 0.0.0.0 --port $PORT
+web: python -m alembic upgrade head && python -m invoice_processing.auth.seed && python -m invoice_processing.erp_mock.seed && python -m uvicorn invoice_processing.main:app --host 0.0.0.0 --port $PORT
