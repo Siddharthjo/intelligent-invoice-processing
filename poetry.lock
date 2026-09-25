@@ -970,6 +970,24 @@ files = [
 ]
 
 [[package]]
+name = "hdbcli"
+version = "2.30.27"
+description = "SAP HANA Python Client"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "hdbcli-2.30.27-cp310-abi3-macosx_13_0_arm64.whl", hash = "sha256:2a95a20cba24a67955531c85c755bdf22b0dbd56c2dca28072de4e6bc71c8ad8"},
+    {file = "hdbcli-2.30.27-cp310-abi3-macosx_13_0_x86_64.whl", hash = "sha256:c20d2cfb1c102dd204624e1edfb370245955b4d29794d4ec01625b8a820faa47"},
+    {file = "hdbcli-2.30.27-cp310-abi3-manylinux2014_aarch64.whl", hash = "sha256:4e5c835269ea7563454e91586b593dbb60bf2e27c8ee75fd185b88e64760cf47"},
+    {file = "hdbcli-2.30.27-cp310-abi3-manylinux2014_ppc64le.whl", hash = "sha256:62087ef27599c32ccf566ac96d225da263c53337b6a2dca6d207ca5e5f647b23"},
+    {file = "hdbcli-2.30.27-cp310-abi3-manylinux2014_x86_64.whl", hash = "sha256:8dae4357c648b199e1a10bddd29c87a7d8a23d3b1899b1d9e70b0bd3274ceae9"},
+    {file = "hdbcli-2.30.27-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:a353f219359a9eef0126731e398a7a3ae8f46e7263dda37f49e6af272dc776af"},
+    {file = "hdbcli-2.30.27-cp310-abi3-win32.whl", hash = "sha256:eb4b0b5afc71ac9719f4b6ad3d1c72c9fd34e6594aafd89bd738d7f4ad1ea453"},
+    {file = "hdbcli-2.30.27-cp310-abi3-win_amd64.whl", hash = "sha256:99d30bf6ea7b43cc8acea76dd0bea0ae5344f7f49cddb8ca523ee2ae02db37e2"},
+]
+
+[[package]]
 name = "httpcore"
 version = "1.0.9"
 description = "A minimal low-level HTTP client."
@@ -2466,6 +2484,26 @@ pymysql = ["pymysql"]
 sqlcipher = ["sqlcipher3_binary"]
 
 [[package]]
+name = "sqlalchemy-hana"
+version = "4.6.1"
+description = "SQLAlchemy dialect for SAP HANA"
+optional = false
+python-versions = "~=3.10"
+groups = ["main"]
+files = [
+    {file = "sqlalchemy_hana-4.6.1-py3-none-any.whl", hash = "sha256:1edeab5d389be8b583aacc44eaee7b01a021e17b2597c0adfc249e427b060a84"},
+    {file = "sqlalchemy_hana-4.6.1.tar.gz", hash = "sha256:b79ef522562e18b616e47d3bed56032c3d26a6f46ff2b03432268a265d5bb657"},
+]
+
+[package.dependencies]
+hdbcli = ">=2.10,<3.0"
+sqlalchemy = ">=2,<3"
+typing_extensions = ">=4.15,<5.0"
+
+[package.extras]
+alembic = ["alembic (>=1.12,<2.0)"]
+
+[[package]]
 name = "starlette"
 version = "1.6.0"
 description = "The little ASGI library that shines."
@@ -2939,4 +2977,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "83462215ff243a56731fde2c8fde0be176a090a991503bc5f4e51ce2dfab6f07"
+content-hash = "8cd3d3704f8c4acc905650af5db1199099f34a3f792cdee7d859f0cf29d611f2"

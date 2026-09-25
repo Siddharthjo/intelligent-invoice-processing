@@ -3,11 +3,37 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+import json
+import os
+
+
+def _get_database_url() -> str:
+    """
+    On SAP BTP Cloud Foundry, database credentials are injected via VCAP_SERVICES.
+    Fall back to DATABASE_URL env var for local development.
+    """
+    vcap = os.environ.get("VCAP_SERVICES")
+    if vcap:
+        services = json.loads(vcap)
+        # HANA Cloud credentials
+        for key in services:
+            if "hana" in key.lower():
+                creds = services[key][0]["credentials"]
+                host = creds.get("host")
+                port = creds.get("port", 443)
+                user = creds.get("user")
+                password = creds.get("password")
+                if host and user and password:
+                    return f"hana+hdbcli://{user}:{password}@{host}:{port}"
+    return os.environ.get(
+        "DATABASE_URL",
+        "postgresql+psycopg://invoice_app:invoice_app@localhost:5432/invoice_processing"
+    )
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    database_url: str = "postgresql+psycopg://invoice_app:invoice_app@localhost:5432/invoice_processing"
+    database_url: str = _get_database_url()
 
     max_upload_size_bytes: int = 20 * 1024 * 1024
 

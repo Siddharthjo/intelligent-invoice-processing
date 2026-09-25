@@ -1,0 +1,25 @@
+applications:
+  - name: invoice-processing
+    memory: 512M
+    disk_quota: 1024M
+    instances: 1
+    stack: cflinuxfs5
+    buildpacks:
+      - python_buildpack
+    health-check-type: http
+    health-check-http-endpoint: /health
+    services:
+      - invoice-hana
+    env:
+      # OPENAI_API_KEY is intentionally NOT set here -- it's pushed separately via
+      # `cf set-env invoice-processing OPENAI_API_KEY ...` so the secret never lands
+      # in this file (and therefore never in git history).
+      AGENT_MODEL: gpt-4o-mini
+      AGENT_MAX_TOOL_TURNS: "8"
+      AGENT_CALL_TIMEOUT_SECONDS: "30.0"
+      AGENT_PO_VARIANCE_TOLERANCE_GOODS_PCT: "0.02"
+      AGENT_PO_VARIANCE_TOLERANCE_SERVICES_PCT: "0.05"
+      AGENT_PO_VARIANCE_TOLERANCE_INDIRECT_PCT: "0.08"
+      OCR_ENABLED: "true"
+      OCR_DPI: "300"
+      TEXT_LAYER_MIN_CHARS_PER_PAGE: "20"
